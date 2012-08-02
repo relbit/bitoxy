@@ -46,6 +46,8 @@ private:
 		Pass,
 		Port,
 		Pasv,
+		Eprt,
+		Epsv,
 		Raw
 	};
 
@@ -69,7 +71,11 @@ private:
 	void dispatchServerCommand(QString cmd, QString arg);
 	void dispatchServerCommand(QString cmd);
 	QPair<QHostAddress, quint16> decodeHostAndPort(QString msg);
+	QPair<QHostAddress, quint16> decodeExtendedHostAndPort(QString msg);
 	QString encodeHostAndPort(QHostAddress addr, quint16 port);
+	QString encodeExtendedHostAndPort(QHostAddress addr, quint16 port);
+	void engageActiveDataConnection(QHostAddress host, quint16 port);
+	void engagePassiveDataConnection(QHostAddress host, quint16 port);
 
 	FtpDataTransfer *dataTransfer;
 	TargetServerConnectionState targetServerConnectionState;

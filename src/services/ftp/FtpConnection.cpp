@@ -151,7 +151,9 @@ void FtpConnection::processCommand()
 			}
 		} else if(cmd == "PORT") {
 			// FIXME: process PORT
-			if(s_proxyActiveMode && targetServer)
+			if(!targetServer)
+				replyClient(530, "Please login with USER and PASS.");
+			else if(s_proxyActiveMode)
 			{
 				qDebug() << "Proxying active mode";
 				if(dataTransfer)
@@ -237,13 +239,63 @@ void FtpConnection::processCommand()
 				//dispatchServerCommand(msg);
 				//targetServer->write(rawMsg);
 			}
+		} else if(!cmd.compare("EPRT", Qt::CaseInsensitive)) {
+			if(!targetServer)
+				replyClient(530, "Please login with USER and PASS.");
+			else if(s_proxyActiveMode) {
+
+				qDebug() << "Proxying active mode";
+
+				if(dataTransfer)
+				{
+					// FIXME: error
+					qDebug() << "DataTransfer already exists???";
+					return;
+				}
+
+				QPair<QHostAddress, quint16> addr = decodeExtendedHostAndPort(msg);
+
+				if(addr.second > 0)
+				{
+					if(s_proxyMode == FtpDataTransfer::Passive)
+					{
+						lastPortAddr = addr;
+						dispatchServerCommand(Pasv, "", ActiveToPassiveTranslation);
+
+						return;
+					}
+
+					dataTransfer = new FtpDataTransfer(FtpDataTransfer::Active, FtpDataTransfer::Active, this);
+					dataTransfer->setClient(addr.first, addr.second);
+					dataTransfer->setServerListenAddress(targetServer->localAddress());
+
+					dataTransfer->setClientReadBufferSize(s_readBufferSize);
+					dataTransfer->setServerReadBufferSize(s_readBufferSize);
+
+					connect(dataTransfer, SIGNAL(transferFinished()), this, SLOT(dataTransferFinished()));
+
+					if(useSsl)
+						// FIXMEEEE forceFtps FIXME !!! if(useSsl) is wrong since ssl may be needed only between proxy and server
+						dataTransfer->setUseSsl(
+									useSslOnData,
+									s_proxySslMode == FtpServer::Explicit || s_proxySslMode == FtpServer::Auto,
+									"/home/aither/dev/cpp/bitoxy/bitoxy.crt",
+									"/home/aither/dev/cpp/bitoxy/bitoxy.key"
+						);
+
+					dataTransfer->start();
+
+					dispatchServerCommand(Eprt, encodeExtendedHostAndPort(dataTransfer->serverServerAddress(), dataTransfer->serverServerPort()));
+				}
+			}
 		} else if(!cmd.compare("EPSV", Qt::CaseInsensitive)) {
 			if(!targetServer)
 				replyClient(530, "Please login with USER and PASS.");
 			else {
 				// FIXMEEE
-				dispatchServerCommand(msg);
+				//dispatchServerCommand(msg);
 				//targetServer->write(rawMsg);
+				dispatchServerCommand(Epsv);
 			}
 		} else if(!cmd.compare("AUTH", Qt::CaseInsensitive)) {
 			if(s_ssl == FtpServer::Explicit)
@@ -437,6 +489,49 @@ void FtpConnection::forwardTargetServerReply()
 					replyClient(200, "PORT command successful.");
 				else
 					replyClient(227, QString("Entering Passive Mode (%1)").arg(encodeHostAndPort(dataTransfer->clientServerAddress(), dataTransfer->clientServerPort())));
+
+				break;
+			}
+
+			case Eprt: {
+				if(!(fc->flags & NoForwardResponse))
+					replyClient(rc.toInt(), msg);
+				break;
+			}
+
+			case Epsv: {
+				QPair<QHostAddress, quint16> addr = decodeExtendedHostAndPort(msg);
+
+				if(fc->flags & ActiveToPassiveTranslation)
+				{
+					dataTransfer = new FtpDataTransfer(FtpDataTransfer::Active, FtpDataTransfer::Passive, this);
+					dataTransfer->setClient(lastPortAddr.first, lastPortAddr.second);
+				} else {
+					dataTransfer = new FtpDataTransfer(FtpDataTransfer::Passive, FtpDataTransfer::Passive, this);
+					dataTransfer->setClientListenAddress(localAddress());
+				}
+
+				dataTransfer->setServer(targetServer->peerAddress(), addr.second);
+
+				dataTransfer->setClientReadBufferSize(s_readBufferSize);
+				dataTransfer->setServerReadBufferSize(s_readBufferSize);
+
+				if(useSsl)
+					dataTransfer->setUseSsl(useSslOnData,
+								s_proxySslMode == FtpServer::Explicit || s_proxySslMode == FtpServer::Auto,
+								"/home/aither/dev/cpp/bitoxy/bitoxy.crt",
+								"/home/aither/dev/cpp/bitoxy/bitoxy.key");
+
+				connect(dataTransfer, SIGNAL(transferFinished()), this, SLOT(dataTransferFinished()));
+
+				dataTransfer->start();
+
+//				qDebug() << "Internal FTP server is listening on" << addr.first << addr.second;
+
+				if(fc->flags & ActiveToPassiveTranslation)
+					replyClient(200, "EPRT command successful.");
+				else
+					replyClient(229, QString("Entering Extended Passive Mode (%1)").arg(encodeExtendedHostAndPort(QHostAddress(), dataTransfer->clientServerPort())));
 
 				break;
 			}
@@ -706,6 +801,13 @@ void FtpConnection::dispatchServerCommand()
 	case Pasv:
 		cmd = "PASV";
 		break;
+	case Eprt:
+		cmd = "EPRT";
+		arg = fc->str;
+		break;
+	case Epsv:
+		cmd = "EPSV";
+		break;
 	case Raw:
 		cmd = fc->str;
 		break;
@@ -950,6 +1052,22 @@ QPair<QHostAddress, quint16> FtpConnection::decodeHostAndPort(QString msg)
 		return QPair<QHostAddress, quint16>(QHostAddress(), 0);
 }
 
+QPair<QHostAddress, quint16> FtpConnection::decodeExtendedHostAndPort(QString msg)
+{
+	QStringList arg = msg.split(' ');
+
+	if(arg.count() != 2)
+		return QPair<QHostAddress, quint16>(QHostAddress(), 0);
+
+	QStringList parts = arg[1].split('|');
+	qDebug() << "Parts = " << parts;
+
+	if(parts.count() != 5)
+		return QPair<QHostAddress, quint16>(QHostAddress(), 0);
+
+	return QPair<QHostAddress, quint16>(QHostAddress(parts[2]), parts[3].toInt());
+}
+
 QString FtpConnection::encodeHostAndPort(QHostAddress addr, quint16 port)
 {
 	return QString("%1,%2,%3")
@@ -957,4 +1075,12 @@ QString FtpConnection::encodeHostAndPort(QHostAddress addr, quint16 port)
 			.arg((port & 0xff00) >> 8)
 			.arg(port & 0xff
 	);
+}
+
+QString FtpConnection::encodeExtendedHostAndPort(QHostAddress addr, quint16 port)
+{
+	return QString("|%1|%2|%3|")
+			.arg(addr.isNull() ? "" : (addr.protocol() == QAbstractSocket::IPv4Protocol ? "1" : "2"))
+			.arg(addr.isNull() ? "" : addr.toString())
+			.arg(port);
 }
