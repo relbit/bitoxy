@@ -113,52 +113,55 @@ bool Bitoxy::init(QString config)
 		if(!type[0].compare("service", Qt::CaseInsensitive))
 		{
 			BaseTcpServer *server = 0;
-			QHostAddress addr;
+			QStringList addrs;
+			QHostAddress hostAddr;
 			quint16 port;
 			QString router;
 			int routerId = 0;
 
-			if(!addr.setAddress(cfg.value("Host", "0.0.0.0").toString()))
+			addrs = cfg.value("Host").toStringList();
+
+			foreach(QString addr, addrs)
 			{
-				addr.setAddress("0.0.0.0");
-			}
+				if(!hostAddr.setAddress(addr))
+				{
+					qWarning() << "Invalid address" << addr;
+					continue;
+				}
 
-			if(!(port = cfg.value("Port", 0).toInt()))
-			{
-				qWarning() << "Invalid port";
+				if(!(port = cfg.value("Port", 0).toInt()))
+				{
+					qWarning() << "Invalid port";
+					continue;
+				}
 
-				cfg.endGroup();
-				continue;
-			}
-
-			if((router = cfg.value("Router").toString()).isEmpty())
-			{
-				qWarning() << "No router specified for service" << type[1];
-
-				cfg.endGroup();
-				continue;
-			} else {
-				routerId = routers[router];
-			}
+				if((router = cfg.value("Router").toString()).isEmpty())
+				{
+					qWarning() << "No router specified for service" << type[1];
+					continue;
+				} else {
+					routerId = routers[router];
+				}
 
 #ifdef SERVICE_FTP
-			if(!type[1].compare("ftp", Qt::CaseInsensitive))
-			{
-				server = new FtpServer(cfg, this);
-				if(server->listen(addr, port))
-					qDebug() << "FTP server: Listening on" << addr << port;
-				else
-					qDebug() << "FTP server: Unable to listen:" << server->serverError();
-			}
+				if(!type[1].compare("ftp", Qt::CaseInsensitive))
+				{
+					server = new FtpServer(cfg, this);
+					if(server->listen(hostAddr, port))
+						qDebug() << "FTP server: Listening on" << QString("%1:%2").arg(addr).arg(port);
+					else
+						qDebug() << "FTP server: Unable to listen on" << QString("%1:%2").arg(addr).arg(port) <<":" << server->serverError();
+				}
 #endif
 
-			if(server)
-			{
-				connect(server, SIGNAL(newConnection(IncomingConnection)),
-					this, SLOT(processNewConnection(IncomingConnection))
-				);
+				if(server)
+				{
+					connect(server, SIGNAL(newConnection(IncomingConnection)),
+						this, SLOT(processNewConnection(IncomingConnection))
+					);
 
-				server->setRouter(routerId);
+					server->setRouter(routerId);
+				}
 			}
 
 		} else if(!type[0].compare("router", Qt::CaseInsensitive)) {
@@ -174,7 +177,7 @@ bool Bitoxy::init(QString config)
 
 			if(router)
 			{
-				qDebug() << "Register router" << type[1];
+				qDebug() << "Registered router" << type[1];
 				routers[ type[2] ] = Router::registerRouter(router);
 			}
 		}
