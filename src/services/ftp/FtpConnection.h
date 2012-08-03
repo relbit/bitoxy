@@ -75,7 +75,8 @@ private:
 	QString encodeHostAndPort(QHostAddress addr, quint16 port);
 	QString encodeExtendedHostAndPort(QHostAddress addr, quint16 port);
 	void engageActiveDataConnection(QHostAddress host, quint16 port);
-	void engagePassiveDataConnection(QHostAddress host, quint16 port);
+	void engagePassiveDataConnection(QHostAddress host, quint16 port, FtpCommandFlags flags = NoFlags);
+	void engagePassiveToActiveDataConnectionTranslation();
 
 	FtpDataTransfer *dataTransfer;
 	TargetServerConnectionState targetServerConnectionState;
