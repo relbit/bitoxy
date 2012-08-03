@@ -3,6 +3,7 @@
 
 #include <QObject>
 #include <QSslSocket>
+#include <QSslKey>
 
 #include "FtpDataTransferServer.h"
 
@@ -24,7 +25,7 @@ public:
 	void setServer(QHostAddress host, quint16 port);
 	void setServer(QString host, quint16 port);
 	void setServerListenAddress(QHostAddress address);
-	void setUseSsl(bool clientSsl, bool serverSsl = false, QString cert = QString(), QString key = QString());
+	void setUseSsl(bool clientSsl, bool serverSsl = false, QSslCertificate cert = QSslCertificate(), QSslKey key = QSslKey());
 	QHostAddress clientServerAddress();
 	quint16 clientServerPort();
 	QHostAddress serverServerAddress();
@@ -53,8 +54,8 @@ private:
 	QHostAddress serverListen;
 	bool clientSsl;
 	bool serverSsl;
-	QString certificate;
-	QString privateKey;
+	QSslCertificate certificate;
+	QSslKey privateKey;
 	qint8 connected;
 	qint8 disconnected;
 	quint32 clientBufferSize;

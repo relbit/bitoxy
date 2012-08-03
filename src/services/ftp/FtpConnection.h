@@ -92,6 +92,8 @@ private:
 
 	int r_router;
 
+	QSslCertificate sslCertificate;
+	QSslKey sslKey;
 	bool useSsl;
 	bool useSslOnData;
 	QQueue<FtpCommand*> serverCommands;

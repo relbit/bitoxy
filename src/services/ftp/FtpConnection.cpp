@@ -43,6 +43,12 @@ void FtpConnection::applySettings(QHash<QString, QVariant> &settings)
 	s_readBufferSize = settings["ReadBufferSize"].toInt();
 
 	r_router = settings["Router"].toInt();
+
+	if(settings.contains("SSLCertificate"))
+	{
+		sslCertificate = QSslCertificate::fromData(settings["SSLCertificate"].toByteArray()).first();
+		sslKey = QSslKey(settings["SSLPrivateKey"].toByteArray(), QSsl::Rsa);
+	}
 }
 
 void FtpConnection::sendGreetings()
@@ -423,7 +429,7 @@ void FtpConnection::forwardTargetServerReply()
 			case Epsv: {
 				QPair<QHostAddress, quint16> addr = decodeExtendedHostAndPort(msg);
 
-				engagePassiveDataConnection(addr.first, addr.second, fc->flags);
+				engagePassiveDataConnection(targetServer->peerAddress(), addr.second, fc->flags);
 
 //				qDebug() << "Internal FTP server is listening on" << addr.first << addr.second;
 
@@ -598,8 +604,8 @@ void FtpConnection::engageActiveDataConnection(QHostAddress host, quint16 port)
 	dataTransfer->setUseSsl(
 				useSslOnData,
 				s_proxySslMode == FtpServer::Explicit || (useSslOnData && s_proxySslMode == FtpServer::Auto),
-				"/home/aither/dev/cpp/bitoxy/bitoxy.crt",
-				"/home/aither/dev/cpp/bitoxy/bitoxy.key"
+				sslCertificate,
+				sslKey
 	);
 
 	dataTransfer->start();
@@ -623,8 +629,8 @@ void FtpConnection::engagePassiveDataConnection(QHostAddress host, quint16 port,
 
 	dataTransfer->setUseSsl(useSslOnData,
 				s_proxySslMode == FtpServer::Explicit || (useSslOnData && s_proxySslMode == FtpServer::Auto),
-				"/home/aither/dev/cpp/bitoxy/bitoxy.crt",
-				"/home/aither/dev/cpp/bitoxy/bitoxy.key");
+				sslCertificate,
+				sslKey);
 
 	connect(dataTransfer, SIGNAL(transferFinished()), this, SLOT(dataTransferFinished()));
 
@@ -643,8 +649,8 @@ void FtpConnection::engagePassiveToActiveDataConnectionTranslation()
 
 	dataTransfer->setUseSsl(useSslOnData,
 				s_proxySslMode == FtpServer::Explicit || (useSslOnData && s_proxySslMode == FtpServer::Auto),
-				"/home/aither/dev/cpp/bitoxy/bitoxy.crt",
-				"/home/aither/dev/cpp/bitoxy/bitoxy.key");
+				sslCertificate,
+				sslKey);
 
 	connect(dataTransfer, SIGNAL(transferFinished()), this, SLOT(dataTransferFinished()));
 
@@ -676,18 +682,24 @@ QPair<QHostAddress, quint16> FtpConnection::decodeHostAndPort(QString msg)
 
 QPair<QHostAddress, quint16> FtpConnection::decodeExtendedHostAndPort(QString msg)
 {
-	QStringList arg = msg.split(' ');
+//	QStringList arg = msg.split(' ');
 
-	if(arg.count() != 2)
-		return QPair<QHostAddress, quint16>(QHostAddress(), 0);
+//	if(arg.count() != 2)
+//		return QPair<QHostAddress, quint16>(QHostAddress(), 0);
 
-	QStringList parts = arg[1].split('|');
-	qDebug() << "Parts = " << parts;
+//	QStringList parts = arg[1].split('|');
+//	qDebug() << "Parts = " << parts;
 
-	if(parts.count() != 5)
-		return QPair<QHostAddress, quint16>(QHostAddress(), 0);
+//	if(parts.count() != 5)
+//		return QPair<QHostAddress, quint16>(QHostAddress(), 0);
 
-	return QPair<QHostAddress, quint16>(QHostAddress(parts[2]), parts[3].toInt());
+//	return QPair<QHostAddress, quint16>(QHostAddress(parts[2]), parts[3].toInt());
+
+	QRegExp rx("\\|(\\d?)\\|(.*)\\|(\\d+)\\|");
+
+	if(rx.indexIn(msg) != -1)
+		return QPair<QHostAddress, quint16>(QHostAddress(rx.cap(2)), rx.cap(3).toInt());
+	return QPair<QHostAddress, quint16>(QHostAddress(), 0);
 }
 
 QString FtpConnection::encodeHostAndPort(QHostAddress addr, quint16 port)

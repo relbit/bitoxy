@@ -1,3 +1,5 @@
+#include <QFile>
+
 #include "FtpServer.h"
 #include "FtpConnection.h"
 
@@ -28,6 +30,33 @@ FtpServer::FtpServer(QSettings &settings, QObject *parent) :
 	else if(!proxyMode.compare("passive"))
 		s_proxyMode = FtpDataTransfer::Passive;
 	else s_proxyMode = FtpDataTransfer::Auto;
+
+	QString sslCert, sslKey;
+
+	sslCert = findConfigValue(settings, "SSLCertificate").toString();
+	sslKey = findConfigValue(settings, "SSLPrivateKey").toString();
+
+	if(!sslCert.isEmpty())
+	{
+		QList<QSslCertificate> certs = QSslCertificate::fromPath(sslCert);
+
+		if(certs.count() != 1)
+			qWarning() << "Specify valid certificate";
+		else
+			r_sslCertificate = certs.first();
+
+		QFile f(sslKey);
+
+		if(!f.open(QIODevice::ReadOnly))
+		{
+			qWarning() << "Unable to open ssl key";
+			return;
+		}
+
+		r_sslKey = QSslKey(&f, QSsl::Rsa);
+
+		f.close();
+	}
 }
 
 void FtpServer::incomingConnection(int socketDescriptor)
@@ -53,6 +82,12 @@ void FtpServer::incomingConnection(int socketDescriptor)
 	con.settings["ProxyActiveMode"] = s_proxyActiveMode;
 	con.settings["Router"] = router;
 	con.settings["ReadBufferSize"] = s_readBufferSize;
+
+	if(!r_sslCertificate.isNull())
+	{
+		con.settings["SSLCertificate"] = r_sslCertificate.toPem();
+		con.settings["SSLPrivateKey"] = r_sslKey.toPem();
+	}
 
 	emit newConnection(con);
 }

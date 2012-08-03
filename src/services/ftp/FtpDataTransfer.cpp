@@ -58,7 +58,7 @@ void FtpDataTransfer::setServerListenAddress(QHostAddress address)
 	serverListen = address;
 }
 
-void FtpDataTransfer::setUseSsl(bool clientSsl, bool serverSsl, QString cert, QString key)
+void FtpDataTransfer::setUseSsl(bool clientSsl, bool serverSsl, QSslCertificate cert, QSslKey key)
 {
 	this->clientSsl = clientSsl;
 	this->serverSsl = serverSsl;

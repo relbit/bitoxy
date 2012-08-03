@@ -1,6 +1,9 @@
 #ifndef FTPSERVER_H
 #define FTPSERVER_H
 
+#include <QSslCertificate>
+#include <QSslKey>
+
 #include "../../BaseTcpServer.h"
 #include "FtpDataTransfer.h"
 
@@ -31,6 +34,8 @@ private:
 	FtpDataTransfer::TransferMode s_proxyMode;
 	bool s_proxyActiveMode;
 	quint32 s_readBufferSize;
+	QSslCertificate r_sslCertificate;
+	QSslKey r_sslKey;
 	
 };
 

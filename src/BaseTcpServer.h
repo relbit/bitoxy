@@ -35,6 +35,8 @@ signals:
 public slots:
 
 protected:
+	QVariant findConfigValue(QSettings &settings, QString var);
+
 	int router;
 
 private:
