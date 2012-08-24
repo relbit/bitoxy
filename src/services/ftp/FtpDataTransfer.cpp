@@ -14,7 +14,11 @@ FtpDataTransfer::FtpDataTransfer(TransferMode clientMode, TransferMode serverMod
 	clientSsl(false),
 	serverSsl(false),
 	clientBufferSize(32768),
-	serverBufferSize(32768)
+	serverBufferSize(32768),
+	clientReady(false),
+	serverReady(false),
+	clientDone(false),
+	serverDone(false)
 {
 	connect(&clientServer, SIGNAL(clientConnected(QSslSocket*)), this, SLOT(clientConnectedPassive(QSslSocket*)));
 	connect(&serverServer, SIGNAL(clientConnected(QSslSocket*)), this, SLOT(serverConnectedActive(QSslSocket*)));
@@ -111,18 +115,20 @@ void FtpDataTransfer::start()
 //		connect(clientSocket, SIGNAL(bytesWritten(qint64)), this, SLOT(forwardFromServerToClient()));
 //		connect(clientSocket, SIGNAL(disconnected()), this, SLOT(clientDisconnected()));
 
-//		if(useSsl)
+//		if(clientSsl)
 //		{
-//			connect(clientSocket, SIGNAL(encrypted()), this, SLOT(clientConnected()));
+//			connect(clientSocket, SIGNAL(encrypted()), this, SLOT(clientConnectedActive()));
 
 //			clientSocket->setLocalCertificate(certificate);
 //			clientSocket->setPrivateKey(privateKey);
-//			//clientSocket->connectToHostEncrypted(clientAddress.toString(), clientPort);
+
+//			clientSocket->connectToHostEncrypted(clientAddress.toString(), clientPort);
 
 //			// Do not forget that in FTP the server is ALWAYS TLS server and client is ALWAYS TLS client
 //			// Even when client is listening
-//			clientSocket->connectToHost(clientAddress, clientPort);
+////			clientSocket->connectToHost(clientAddress, clientPort);
 //		} else {
+
 			connect(clientSocket, SIGNAL(connected()), this, SLOT(clientConnectedActive()));
 
 			clientSocket->connectToHost(clientAddress, clientPort);
@@ -172,6 +178,14 @@ void FtpDataTransfer::clientConnectedActive()
 		connect(clientSocket, SIGNAL(readyRead()), this, SLOT(forwardFromClientToServer()));
 		connect(clientSocket, SIGNAL(bytesWritten(qint64)), this, SLOT(forwardFromServerToClient()));
 		connect(clientSocket, SIGNAL(disconnected()), this, SLOT(clientDisconnected()));
+
+		clientReady = true;
+
+		if(serverDone && !buffer.isEmpty())
+		{
+			clientSocket->write(buffer);
+			clientSocket->disconnectFromHost();
+		}
 	} else {
 		qDebug() << "Client connected active, engage ssl";
 
@@ -179,9 +193,9 @@ void FtpDataTransfer::clientConnectedActive()
 
 		clientSocket->setLocalCertificate(certificate);
 		clientSocket->setPrivateKey(privateKey);
-		clientSocket->setProtocol(QSsl::TlsV1);
+		clientSocket->setProtocol(QSsl::AnyProtocol);
 		clientSocket->startServerEncryption();
-		clientSocket->waitForEncrypted(1000); // I just don't know... those fucking signals are not working
+	//	clientSocket->waitForEncrypted(1000); // I just don't know... those fucking signals are not working
 	}
 }
 
@@ -194,6 +208,14 @@ void FtpDataTransfer::serverConnectedPassive()
 		connect(serverSocket, SIGNAL(readyRead()), this, SLOT(forwardFromServerToClient()));
 		connect(serverSocket, SIGNAL(bytesWritten(qint64)), this, SLOT(forwardFromClientToServer()));
 		connect(serverSocket, SIGNAL(disconnected()), this, SLOT(serverDisconnected()));
+
+		serverReady = true;
+
+		if(clientDone && !buffer.isEmpty())
+		{
+			serverSocket->write(buffer);
+			serverSocket->disconnectFromHost();
+		}
 	} else {
 		qDebug() << "Server connected, engage ssl";
 
@@ -234,24 +256,35 @@ void FtpDataTransfer::clientConnectedPassive(QSslSocket *client)
 	connect(clientSocket, SIGNAL(bytesWritten(qint64)), this, SLOT(forwardFromServerToClient()));
 	connect(clientSocket, SIGNAL(disconnected()), this, SLOT(clientDisconnected()));
 	connect(clientSocket, SIGNAL(encrypted()), this, SLOT(clientConnectedActive()));
+	connect(clientSocket, SIGNAL(sslErrors(QList<QSslError>)), this, SLOT(sslErrors(QList<QSslError>)));
+	connect(clientSocket, SIGNAL(peerVerifyError(QSslError)), this, SLOT(peerVerifyError(QSslError)));
+	connect(clientSocket, SIGNAL(modeChanged(QSslSocket::SslMode)), this, SLOT(modeChange(QSslSocket::SslMode)));
 
 	if(!clientSsl || clientSocket->isEncrypted())
 	{
 		qDebug() << "Client connected passive, ok";
+		clientReady = true;
 
-
+		if(serverDone && !buffer.isEmpty())
+		{
+			clientSocket->write(buffer);
+			clientSocket->disconnectFromHost();
+		}
 	} else {
 		qDebug() << "Client connected passive, engage ssl";
 
-
-
 		clientSocket->setLocalCertificate(certificate);
 		clientSocket->setPrivateKey(privateKey);
-		clientSocket->setProtocol(QSsl::AnyProtocol);
+		clientSocket->setProtocol(QSsl::TlsV1SslV3);
+		clientSocket->setPeerVerifyMode(QSslSocket::VerifyNone);
+
+		QList<QSslError> ignoreErrors;
+		ignoreErrors << QSslError(QSslError::SelfSignedCertificate);
+		clientSocket->ignoreSslErrors(ignoreErrors);
+
 		clientSocket->startServerEncryption();
 
-		clientSocket->waitForEncrypted(1000);// FIXME AAAA
-		qDebug()<< "errs" << clientSocket->sslErrors() << clientSocket->protocol();
+//		clientSocket->waitForEncrypted(1000);// FIXME AAAA
 	}
 }
 
@@ -289,6 +322,14 @@ void FtpDataTransfer::serverConnectedActive(QSslSocket *server)
 		connect(serverSocket, SIGNAL(readyRead()), this, SLOT(forwardFromServerToClient()));
 		connect(serverSocket, SIGNAL(bytesWritten(qint64)), this, SLOT(forwardFromClientToServer()));
 		connect(serverSocket, SIGNAL(disconnected()), this, SLOT(serverDisconnected()));
+
+		serverReady = true;
+
+		if(clientDone && !buffer.isEmpty())
+		{
+			serverSocket->write(buffer);
+			serverSocket->disconnectFromHost();
+		}
 	} else {
 		qDebug() << "Server active connected, engage ssl";
 
@@ -318,7 +359,18 @@ void FtpDataTransfer::forwardFromServerToClient()
 	if(serverSocket->bytesAvailable() && !clientSocket->bytesToWrite())
 	{
 		//qDebug() << "DTP: Forwarding from server to client" << clientSocket->write(serverSocket->read(8192)) << "bytes";
-		clientSocket->write(serverSocket->read(serverBufferSize));
+
+		if(clientReady)
+		{
+			if(!buffer.isEmpty())
+			{
+				clientSocket->write(buffer);
+				buffer.clear();
+			}
+
+			clientSocket->write(serverSocket->read(serverBufferSize));
+		} else
+			buffer.append(serverSocket->read(serverBufferSize));
 	}
 }
 
@@ -333,7 +385,17 @@ void FtpDataTransfer::forwardFromClientToServer()
 	if(clientSocket->bytesAvailable() && !serverSocket->bytesToWrite())
 	{
 		//qDebug() << "DTP: Forwarding from client to server" << serverSocket->write(clientSocket->read(8192)) << "bytes";
-		serverSocket->write(clientSocket->read(clientBufferSize));
+		if(serverReady)
+		{
+			if(!buffer.isEmpty())
+			{
+				serverSocket->write(buffer);
+				buffer.clear();
+			}
+
+			serverSocket->write(clientSocket->read(clientBufferSize));
+		} else
+			buffer.append(clientSocket->read(clientBufferSize));
 	}
 }
 
@@ -341,8 +403,10 @@ void FtpDataTransfer::clientDisconnected()
 {
 	qDebug() << "Client disconnected";
 
-	if(serverSocket)
+	if(serverSocket && serverReady)
 		serverSocket->disconnectFromHost();
+
+	clientDone = true;
 
 	if(++disconnected == 2)
 		emit transferFinished();
@@ -352,9 +416,32 @@ void FtpDataTransfer::serverDisconnected()
 {
 	qDebug() << "Server disconnected";
 
-	if(clientSocket)
+	if(clientSocket && clientReady)
 		clientSocket->disconnectFromHost();
+
+	serverDone = true;
 
 	if(++disconnected == 2)
 		emit transferFinished();
+}
+
+void FtpDataTransfer::sslErrors(const QList<QSslError> &errors)
+{
+	qDebug() << "SSL errors occured:" << errors;
+}
+
+void FtpDataTransfer::peerVerifyError(const QSslError &error)
+{
+	QSslCertificate cert = error.certificate();
+
+	qDebug() << "Peer verify error occured:" << (int)error.error() << error
+		 << cert.issuerInfo(QSslCertificate::CommonName)
+		    << cert.subjectInfo(QSslCertificate::CommonName);
+	clientSocket->ignoreSslErrors();
+	qDebug() << "Ignoring error";
+}
+
+void  FtpDataTransfer::modeChange(QSslSocket::SslMode mode)
+{
+	qDebug() << "Client ssl mode changed to" << mode;
 }

@@ -60,6 +60,11 @@ private:
 	qint8 disconnected;
 	quint32 clientBufferSize;
 	quint32 serverBufferSize;
+	QByteArray buffer;
+	bool clientReady;
+	bool serverReady;
+	bool clientDone;
+	bool serverDone;
 
 private slots:
 	// Naming from the Bitoxy point of view
@@ -71,7 +76,9 @@ private slots:
 	void forwardFromClientToServer();
 	void clientDisconnected();
 	void serverDisconnected();
-	
+	void sslErrors(const QList<QSslError> &errors);
+	void peerVerifyError(const QSslError &error);
+	void modeChange(QSslSocket::SslMode mode);
 };
 
 #endif // FTPDATATRANSFER_H

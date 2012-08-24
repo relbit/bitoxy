@@ -39,8 +39,7 @@ Bitoxy::~Bitoxy()
 	}
 
 	QList<Router*> routers = Router::routers();
-	foreach(Router *r, routers)
-		delete r;
+	qDeleteAll(routers);
 }
 
 bool Bitoxy::init(QString config)
@@ -244,6 +243,8 @@ void Bitoxy::processNewConnection(IncomingConnection connection)
 	int minConnections = workers.first()->connectionCount();
 	int index = 0;
 
+	qDebug() << "Worker" << 0 << ":" << minConnections << "connections";
+
 	for(int i = 1; i < workersCnt; i++)
 	{
 		int cnt = workers.at(i)->connectionCount();
@@ -253,6 +254,8 @@ void Bitoxy::processNewConnection(IncomingConnection connection)
 			minConnections = cnt;
 			index = i;
 		}
+
+		qDebug() << "Worker" << i << ":" << cnt << "connections";
 	}
 
 	qDebug() << "Client assigned to worker" << index;

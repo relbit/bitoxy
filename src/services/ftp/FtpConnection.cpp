@@ -33,8 +33,6 @@ FtpConnection::FtpConnection(QObject *parent) :
 
 void FtpConnection::applySettings(QHash<QString, QVariant> &settings)
 {
-	qDebug() << "Applying ftp con settings" << settings;
-
 	s_ssl = (FtpServer::SslMode)settings["Ssl"].toInt();
 	s_forceSsl = settings["ForceSsl"].toBool();
 	s_proxySslMode = (FtpServer::SslMode)settings["ProxySslMode"].toInt();
