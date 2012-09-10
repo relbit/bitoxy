@@ -4,6 +4,8 @@
 #include <QThread>
 #include <QFile>
 #include <QTextStream>
+#include <QMutexLocker>
+#include <QDateTime>
 #include <QDebug>
 
 #include <unistd.h>
@@ -18,9 +20,13 @@
 #include "routers/SqlRouter.h"
 #include "services/ftp/FtpServer.h"
 
+QFile* Bitoxy::logFile = 0;
+QMutex Bitoxy::mutex;
+
 Bitoxy::Bitoxy(QObject *parent) :
         QObject(parent)
 {
+	connect(QCoreApplication::instance(), SIGNAL(aboutToQuit()), this, SLOT(aboutToQuit()));
 }
 
 Bitoxy::~Bitoxy()
@@ -230,6 +236,42 @@ bool Bitoxy::init(QString config)
 	return true;
 }
 
+void Bitoxy::installLogFileHandler(QString &logFilePath)
+{
+	logFile = new QFile(logFilePath, this);
+
+	if(logFile->open(QIODevice::Append))
+	{
+		qInstallMsgHandler(Bitoxy::logFileHandler);
+	} else {
+		qWarning() << "Unable to open log file" << logFilePath << "in append mode:" << logFile->errorString();
+	}
+}
+
+void Bitoxy::logFileHandler(QtMsgType type, const char *msg)
+{
+	QMutexLocker locker(&mutex);
+
+	QTextStream out(logFile);
+	QString str = "%1: %2\n";
+
+	switch (type)
+	{
+	case QtDebugMsg:
+		out << str.arg("[D]").arg(msg);
+		break;
+	case QtWarningMsg:
+		out << str.arg("[W]").arg(msg);
+		break;
+	case QtCriticalMsg:
+		out << str.arg("[CRITICAL]").arg(msg);
+		break;
+	case QtFatalMsg:
+		out << str.arg("[FATAL]").arg(msg);
+		abort();
+	}
+}
+
 void Bitoxy::processNewConnection(IncomingConnection connection)
 {
 	int workersCnt = workers.count();
@@ -266,13 +308,18 @@ void Bitoxy::processNewConnection(IncomingConnection connection)
 	QMetaObject::invokeMethod(workers.at(index), "addConnection", Qt::QueuedConnection, Q_ARG(IncomingConnection, connection));
 }
 
+void Bitoxy::aboutToQuit()
+{
+	qDebug() << "Bitoxy exiting at" << QDateTime::currentDateTime().toString();
+}
+
 void savePid(QString file, pid_t pid)
 {
 	QFile f(file);
 
 	if(!f.open(QIODevice::WriteOnly))
 	{
-		qDebug() << "Unable to open file to write PID:" << f.errorString();
+		qWarning() << "Unable to open file to write PID:" << f.errorString();
 		return;
 	}
 
@@ -288,6 +335,7 @@ int main(int argc, char *argv[])
 
 	QString config = "/etc/bitoxy.conf";
 	QString pidFile;
+	QString logFilePath;
 	int daemon = 0;
 
 	int c;
@@ -297,25 +345,27 @@ int main(int argc, char *argv[])
 		{"config", required_argument, 0, 'c'},
 		{"daemon", no_argument, &daemon, 1},
 		{"pidfile", required_argument, 0, 'p'},
+		{"logfile", required_argument, 0, 'l'},
 		{0, 0, 0, 0}
 	};
 
-	while((c = getopt_long(argc, argv, "c:dp:", long_options, &option_index)) != -1)
+	while((c = getopt_long(argc, argv, "c:dp:l:", long_options, &option_index)) != -1)
 	{
 		switch(c)
 		{
 		case 0:
 			break;
 		case 'c':
-			qDebug() << "Using config" << optarg;
 			config = optarg;
 			break;
 		case 'd':
 			daemon = 1;
 			break;
 		case 'p':
-			qDebug() << "Saving PID to" << optarg;
 			pidFile = optarg;
+			break;
+		case 'l':
+			logFilePath = optarg;
 			break;
 		case '?':
 			return 1;
@@ -324,6 +374,16 @@ int main(int argc, char *argv[])
 			return 1;
 		}
 	}
+
+	if(!logFilePath.isEmpty())
+	{
+		if(daemon)
+			bit.installLogFileHandler(logFilePath);
+		else
+			qDebug() << "Not using specified log file when running on foreground";
+	}
+
+	qDebug() << "Bitoxy starting at" << QDateTime::currentDateTime().toString();
 
 	if(daemon)
 	{
@@ -334,7 +394,10 @@ int main(int argc, char *argv[])
 			qDebug() << "Daemonize...";
 
 			if(!pidFile.isEmpty())
+			{
+				qDebug() << "Saving PID to" << pidFile;
 				savePid(pidFile, pid);
+			}
 
 			return 0;
 		} else if(pid == -1) {
@@ -342,6 +405,8 @@ int main(int argc, char *argv[])
 		}
 	} else if(!pidFile.isEmpty())
 		savePid(pidFile, getpid());
+
+	qDebug() << "Using config" << config;
 
 	if(bit.init(config))
 		return a.exec();

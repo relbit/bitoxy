@@ -3,6 +3,8 @@
 
 #include <QObject>
 #include <QList>
+#include <QFile>
+#include <QMutex>
 
 #include "BaseTcpServer.h"
 #include "Worker.h"
@@ -16,14 +18,19 @@ public:
 	explicit Bitoxy(QObject *parent = 0);
 	~Bitoxy();
 	bool init(QString config);
+	void installLogFileHandler(QString &logFilePath);
+	static void logFileHandler(QtMsgType type, const char *msg);
 	
 signals:
 //	void incomingConnectionQueued();
 	
 public slots:
+	void aboutToQuit();
 
 private:
 	QList<Worker*> workers;
+	static QFile *logFile;
+	static QMutex mutex;
 
 private slots:
 	void processNewConnection(IncomingConnection connection);

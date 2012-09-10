@@ -56,7 +56,7 @@ void FtpConnection::sendGreetings()
 
 void FtpConnection::replyClient(QString msg)
 {
-	qDebug() << "Sending reply to client" << msg;
+	qDebug() << "Client <-" << msg;
 
 	write((msg + "\r\n").toAscii());
 }
@@ -68,7 +68,9 @@ void FtpConnection::replyClient(int code, QString msg)
 
 void FtpConnection::replyServer(QString msg)
 {
-	qDebug() << "Sending reply to server" << msg.toAscii();
+	if(!msg.section(' ', 0, 0).compare("PASS", Qt::CaseInsensitive))
+		qDebug() << "Server <-" << "\"PASS ****\"";
+	else qDebug() << "Server <-" << msg;
 
 	targetServer->write((msg + "\r\n").toAscii());
 }
@@ -86,17 +88,17 @@ void FtpConnection::processCommand()
 		QString msg(rawMsg);
 		msg = msg.trimmed();
 
-		qDebug() << "Received msg" << msg;
-
 		QString cmd = msg.section(' ', 0, 0);
 
-		qDebug() << "Command identified as" << cmd;
+		if(!cmd.compare("PASS", Qt::CaseInsensitive))
+			qDebug() << "Client ->" << "\"PASS ****\"";
+		else qDebug() << "Client ->" << msg;
 
 		if(!cmd.compare("USER", Qt::CaseInsensitive))
 		{
 			qDebug() << "User is trying to log in" << msg.section(' ', 1, 1);
 			//sendReply(331, "Please specify the password.");
-			if(targetServer)
+			if(targetServer && loggedOnServer)
 			{
 				//targetServer->write(rawMsg);
 				replyClient(503, "You are already logged in.");
@@ -113,6 +115,12 @@ void FtpConnection::processCommand()
 				{
 					replyClient(500, "USER: command requires a parameter.");
 					return;
+				}
+
+				if(targetServer)
+				{
+					targetServer->deleteLater();
+					targetServer = 0;
 				}
 
 				QPair<QString, quint16> server = Router::findRouteForUsername(r_router, userName);
@@ -139,6 +147,7 @@ void FtpConnection::processCommand()
 			if(!targetServer && !userName.isEmpty())
 			{
 				replyClient(530, "Login incorrect.");
+				userName.clear();
 			} else if(!targetServer)
 				replyClient(503, "Login with USER first.");
 			else if(targetServer && targetServerConnectionState == Failed) {
@@ -305,12 +314,12 @@ void FtpConnection::forwardTargetServerReply()
 
 		if(serverCommands.isEmpty())
 		{
-			qDebug() << "Direct forward" << strMsg;
+			qDebug() << "Server ->" << strMsg << "-> Client";
 			write(rawMsg);
 			continue;
 		}
 
-		qDebug() << "Received response from server" << strMsg;
+		qDebug() << "Server ->" << strMsg;
 
 		if(commandSent)
 		{
