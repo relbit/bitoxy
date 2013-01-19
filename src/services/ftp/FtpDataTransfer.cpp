@@ -181,7 +181,7 @@ void FtpDataTransfer::clientConnectedActive()
 
 		clientReady = true;
 
-		if(serverDone && !buffer.isEmpty())
+		if(serverDone)
 		{
 			clientSocket->write(buffer);
 			buffer.clear();
@@ -212,7 +212,7 @@ void FtpDataTransfer::serverConnectedPassive()
 
 		serverReady = true;
 
-		if(clientDone && !buffer.isEmpty())
+		if(clientDone)
 		{
 			serverSocket->write(buffer);
 			buffer.clear();
@@ -267,7 +267,7 @@ void FtpDataTransfer::clientConnectedPassive(QSslSocket *client)
 		qDebug() << "Client connected passive, ok";
 		clientReady = true;
 
-		if(serverDone && !buffer.isEmpty())
+		if(serverDone)
 		{
 			clientSocket->write(buffer);
 			buffer.clear();
@@ -328,7 +328,7 @@ void FtpDataTransfer::serverConnectedActive(QSslSocket *server)
 
 		serverReady = true;
 
-		if(clientDone && !buffer.isEmpty())
+		if(clientDone)
 		{
 			serverSocket->write(buffer);
 			buffer.clear();
