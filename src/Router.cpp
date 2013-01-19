@@ -16,8 +16,6 @@ int Router::registerRouter(Router *router)
 
 QPair<QString, quint16> Router::findRouteForUsername(int router, QString username)
 {
-	qDebug() << "rtrs" << m_routers.count();
-
 	if(router < 0 || router >= m_routers.count())
 		return QPair<QString, quint16>(QString(), 0);
 

@@ -25,10 +25,12 @@ FtpConnection::FtpConnection(QObject *parent) :
 	connect(this, SIGNAL(readyRead()), this, SLOT(processCommand()));
 	//connect(this, SIGNAL(disconnected()), this, SLOT(disconnectDataConnection())); FIXME?
 //	connect(&dataTransfer, SIGNAL(clientConnected(QSslSocket*)), this, SLOT(handleDataTransfer(QSslSocket*)));
+	connect(this, SIGNAL(sslErrors(QList<QSslError>)), this, SLOT(sslErrorsHandler(QList<QSslError>)));
 
-	setLocalCertificate("/home/aither/dev/cpp/bitoxy/bitoxy.crt");
-	setPrivateKey("/home/aither/dev/cpp/bitoxy/bitoxy.key");
-	setProtocol(QSsl::TlsV1);
+	//setLocalCertificate("/home/aither/dev/cpp/bitoxy/bitoxy.crt");
+	//setPrivateKey("/home/aither/dev/cpp/bitoxy/bitoxy.key");
+	//setProtocol(QSsl::TlsV1);
+	//setPeerVerifyMode(QSslSocket::VerifyNone);
 }
 
 void FtpConnection::applySettings(QHash<QString, QVariant> &settings)
@@ -46,6 +48,9 @@ void FtpConnection::applySettings(QHash<QString, QVariant> &settings)
 	{
 		sslCertificate = QSslCertificate::fromData(settings["SSLCertificate"].toByteArray()).first();
 		sslKey = QSslKey(settings["SSLPrivateKey"].toByteArray(), QSsl::Rsa);
+
+		setLocalCertificate(sslCertificate);
+		setPrivateKey(sslKey);
 	}
 }
 
@@ -164,6 +169,12 @@ void FtpConnection::processCommand()
 				replyClient(530, "Please login with USER and PASS.");
 			else if(s_proxyActiveMode)
 			{
+				if(msg.section(' ', 1, 1).isEmpty())
+				{
+					replyClient(501, "PORT: command requires a parameter.");
+					return;
+				}
+
 				qDebug() << "Proxying active mode";
 				if(dataTransfer)
 				{
@@ -215,6 +226,11 @@ void FtpConnection::processCommand()
 			if(!targetServer)
 				replyClient(530, "Please login with USER and PASS.");
 			else if(s_proxyActiveMode) {
+				if(msg.section(' ', 1, 1).isEmpty())
+				{
+					replyClient(501, "PORT: command requires a parameter.");
+					return;
+				}
 
 				qDebug() << "Proxying active mode";
 
@@ -262,6 +278,17 @@ void FtpConnection::processCommand()
 		} else if(!cmd.compare("AUTH", Qt::CaseInsensitive)) {
 			if(s_ssl == FtpServer::Explicit)
 			{
+				QString arg = msg.section(' ', 1, 1).trimmed();
+
+				if(!arg.compare("SSL", Qt::CaseInsensitive))
+					setProtocol(QSsl::SslV3);
+				else if(!arg.compare("TLS", Qt::CaseInsensitive))
+					setProtocol(QSsl::TlsV1);
+				else {
+					replyClient(504, "Unknown security mechanism.");
+					return;
+				}
+
 				useSsl = true;
 				replyClient(234, "Proceed with negotiation.");
 
@@ -670,6 +697,11 @@ void FtpConnection::dataTransferFinished()
 	dataTransfer = 0;
 
 	qDebug() << "Data transfer finished";
+}
+
+void FtpConnection::sslErrorsHandler(const QList<QSslError> & errors)
+{
+	qDebug() << errors;
 }
 
 QPair<QHostAddress, quint16> FtpConnection::decodeHostAndPort(QString msg)

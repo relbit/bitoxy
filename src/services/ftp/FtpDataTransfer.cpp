@@ -155,7 +155,7 @@ void FtpDataTransfer::start()
 //			serverSocket->setLocalCertificate(certificate);
 //			serverSocket->setPrivateKey(privateKey);
 			serverSocket->setPeerVerifyMode(QSslSocket::VerifyNone);
-			serverSocket->setProtocol(QSsl::TlsV1);
+			serverSocket->setProtocol(QSsl::AnyProtocol);
 
 			// Here we act like client
 			serverSocket->connectToHostEncrypted(serverAddress.toString(), serverPort);
@@ -184,6 +184,7 @@ void FtpDataTransfer::clientConnectedActive()
 		if(serverDone && !buffer.isEmpty())
 		{
 			clientSocket->write(buffer);
+			buffer.clear();
 			clientSocket->disconnectFromHost();
 		}
 	} else {
@@ -214,6 +215,7 @@ void FtpDataTransfer::serverConnectedPassive()
 		if(clientDone && !buffer.isEmpty())
 		{
 			serverSocket->write(buffer);
+			buffer.clear();
 			serverSocket->disconnectFromHost();
 		}
 	} else {
@@ -268,6 +270,7 @@ void FtpDataTransfer::clientConnectedPassive(QSslSocket *client)
 		if(serverDone && !buffer.isEmpty())
 		{
 			clientSocket->write(buffer);
+			buffer.clear();
 			clientSocket->disconnectFromHost();
 		}
 	} else {
@@ -275,7 +278,7 @@ void FtpDataTransfer::clientConnectedPassive(QSslSocket *client)
 
 		clientSocket->setLocalCertificate(certificate);
 		clientSocket->setPrivateKey(privateKey);
-		clientSocket->setProtocol(QSsl::TlsV1SslV3);
+		clientSocket->setProtocol(QSsl::AnyProtocol);
 		clientSocket->setPeerVerifyMode(QSslSocket::VerifyNone);
 
 		QList<QSslError> ignoreErrors;
@@ -328,6 +331,7 @@ void FtpDataTransfer::serverConnectedActive(QSslSocket *server)
 		if(clientDone && !buffer.isEmpty())
 		{
 			serverSocket->write(buffer);
+			buffer.clear();
 			serverSocket->disconnectFromHost();
 		}
 	} else {
@@ -338,7 +342,7 @@ void FtpDataTransfer::serverConnectedActive(QSslSocket *server)
 //		serverSocket->setLocalCertificate(certificate);
 //		serverSocket->setPrivateKey(privateKey);
 		serverSocket->setPeerVerifyMode(QSslSocket::VerifyNone);
-		serverSocket->setProtocol(QSsl::TlsV1);
+		serverSocket->setProtocol(QSsl::AnyProtocol);
 		serverSocket->startClientEncryption();
 
 		//qDebug() << serverSocket->waitForEncrypted(1000); // FIXME aaaaa
@@ -350,52 +354,55 @@ void FtpDataTransfer::serverConnectedActive(QSslSocket *server)
 
 void FtpDataTransfer::forwardFromServerToClient()
 {
-	if(!clientSocket || !serverSocket)
+	if(!clientSocket && serverSocket)
 	{
-		qDebug() << "Clietn or server not connected!" << clientSocket << serverSocket;
-		return;
-	}
-
-	if(serverSocket->bytesAvailable() && !clientSocket->bytesToWrite())
-	{
-		//qDebug() << "DTP: Forwarding from server to client" << clientSocket->write(serverSocket->read(8192)) << "bytes";
-
-		if(clientReady)
-		{
-			if(!buffer.isEmpty())
-			{
-				clientSocket->write(buffer);
-				buffer.clear();
-			}
-
-			clientSocket->write(serverSocket->read(serverBufferSize));
-		} else
+		if(serverSocket->bytesAvailable())
 			buffer.append(serverSocket->read(serverBufferSize));
+
+	} else if(clientSocket && !serverSocket) {
+		if(!buffer.isEmpty() && clientReady)
+		{
+			clientSocket->write(buffer);
+			buffer.clear();
+		}
+
+	} else if(clientReady) {
+		if(!buffer.isEmpty())
+		{
+			clientSocket->write(buffer);
+			buffer.clear();
+		}
+
+		clientSocket->write(serverSocket->read(serverBufferSize));
+	} else {
+		buffer.append(serverSocket->read(serverBufferSize));
 	}
 }
 
 void FtpDataTransfer::forwardFromClientToServer()
 {
-	if(!clientSocket || !serverSocket)
+	if(!serverSocket && clientSocket)
 	{
-		qDebug() << "Clietn or server not connected!" << clientSocket << serverSocket;
-		return;
-	}
-
-	if(clientSocket->bytesAvailable() && !serverSocket->bytesToWrite())
-	{
-		//qDebug() << "DTP: Forwarding from client to server" << serverSocket->write(clientSocket->read(8192)) << "bytes";
-		if(serverReady)
-		{
-			if(!buffer.isEmpty())
-			{
-				serverSocket->write(buffer);
-				buffer.clear();
-			}
-
-			serverSocket->write(clientSocket->read(clientBufferSize));
-		} else
+		if(clientSocket->bytesAvailable())
 			buffer.append(clientSocket->read(clientBufferSize));
+
+	} else if(serverSocket && !clientSocket) {
+		if(!buffer.isEmpty() && serverReady)
+		{
+			serverSocket->write(buffer);
+			buffer.clear();
+		}
+
+	} else if(serverReady) {
+		if(!buffer.isEmpty())
+		{
+			serverSocket->write(buffer);
+			buffer.clear();
+		}
+
+		serverSocket->write(clientSocket->read(clientBufferSize));
+	} else {
+		buffer.append(clientSocket->read(clientBufferSize));
 	}
 }
 
@@ -406,6 +413,7 @@ void FtpDataTransfer::clientDisconnected()
 	if(serverSocket && serverReady)
 		serverSocket->disconnectFromHost();
 
+	clientReady = false;
 	clientDone = true;
 
 	if(++disconnected == 2)
@@ -419,6 +427,7 @@ void FtpDataTransfer::serverDisconnected()
 	if(clientSocket && clientReady)
 		clientSocket->disconnectFromHost();
 
+	serverReady = false;
 	serverDone = true;
 
 	if(++disconnected == 2)

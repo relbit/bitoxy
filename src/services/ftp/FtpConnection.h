@@ -119,6 +119,7 @@ private slots:
 	void targetServerConnectionError(QAbstractSocket::SocketError error);
 	void targetServerConnectionEncrypted();
 	void dataTransferFinished();
+	void sslErrorsHandler(const QList<QSslError> & errors);
 };
 
 #endif // FTPCONNECTION_H

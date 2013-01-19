@@ -15,6 +15,9 @@ FtpServer::FtpServer(QSettings &settings, QObject *parent) :
 		s_ssl = FtpServer::Explicit;
 	else s_ssl = FtpServer::None;
 
+	if(s_ssl != FtpServer::None && !QSslSocket::supportsSsl())
+		qWarning() << "QSslSocket does NOT support SSL!";
+
 	QString proxySslMode = settings.value("ProxySslMode").toString();
 
 	if(!proxySslMode.compare("explicit"))
