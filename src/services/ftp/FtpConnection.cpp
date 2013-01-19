@@ -283,7 +283,7 @@ void FtpConnection::processCommand()
 				if(!arg.compare("SSL", Qt::CaseInsensitive))
 					setProtocol(QSsl::SslV3);
 				else if(!arg.compare("TLS", Qt::CaseInsensitive))
-					setProtocol(QSsl::TlsV1);
+					setProtocol(QSsl::AnyProtocol);
 				else {
 					replyClient(504, "Unknown security mechanism.");
 					return;
