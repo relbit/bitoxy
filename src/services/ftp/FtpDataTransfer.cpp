@@ -333,6 +333,8 @@ void FtpDataTransfer::forwardFromServerToClient()
 	} else if(clientSocket && !serverSocket) {
 		if(!buffer.isEmpty() && clientReady)
 		{
+			m_bytesTransfered += buffer.size();
+
 			clientSocket->write(buffer);
 			buffer.clear();
 		}
@@ -340,11 +342,17 @@ void FtpDataTransfer::forwardFromServerToClient()
 	} else if(clientReady) {
 		if(!buffer.isEmpty())
 		{
+			m_bytesTransfered += buffer.size();
+
 			clientSocket->write(buffer);
 			buffer.clear();
 		}
 
-		clientSocket->write(serverSocket->read(serverBufferSize));
+		QByteArray tmp = serverSocket->read(serverBufferSize);
+		m_bytesTransfered += tmp.size();
+
+		clientSocket->write(tmp);
+
 	} else {
 		buffer.append(serverSocket->read(serverBufferSize));
 	}
@@ -360,6 +368,8 @@ void FtpDataTransfer::forwardFromClientToServer()
 	} else if(serverSocket && !clientSocket) {
 		if(!buffer.isEmpty() && serverReady)
 		{
+			m_bytesTransfered += buffer.size();
+
 			serverSocket->write(buffer);
 			buffer.clear();
 		}
@@ -367,11 +377,17 @@ void FtpDataTransfer::forwardFromClientToServer()
 	} else if(serverReady) {
 		if(!buffer.isEmpty())
 		{
+			m_bytesTransfered += buffer.size();
+
 			serverSocket->write(buffer);
 			buffer.clear();
 		}
 
-		serverSocket->write(clientSocket->read(clientBufferSize));
+		QByteArray tmp = clientSocket->read(clientBufferSize);
+		m_bytesTransfered += tmp.size();
+
+		serverSocket->write(tmp);
+
 	} else {
 		buffer.append(clientSocket->read(clientBufferSize));
 	}

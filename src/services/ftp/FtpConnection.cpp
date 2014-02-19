@@ -329,6 +329,8 @@ void FtpConnection::processCommand()
 				replyClient(234, "Proceed with negotiation.");
 
 				startServerEncryption();
+				accessLog.encrypted();
+
 			} else replyClient(500, "Unknown command.");
 		} else if(!cmd.compare("PBSZ", Qt::CaseInsensitive)) {
 			if(useSsl && (s_proxySslMode == FtpServer::Auto || s_proxySslMode == FtpServer::Explicit))
@@ -690,6 +692,8 @@ void FtpConnection::engageActiveDataConnection(QHostAddress host, quint16 port)
 	);
 
 	dataTransfer->start();
+
+	accessLog.setDataTransferActive(true);
 }
 
 void FtpConnection::engagePassiveDataConnection(QHostAddress host, quint16 port, FtpCommandFlags flags)
@@ -717,6 +721,7 @@ void FtpConnection::engagePassiveDataConnection(QHostAddress host, quint16 port,
 
 	dataTransfer->start();
 
+	accessLog.setDataTransferActive(true);
 }
 
 void FtpConnection::engagePassiveToActiveDataConnectionTranslation()
@@ -736,14 +741,16 @@ void FtpConnection::engagePassiveToActiveDataConnectionTranslation()
 	connect(dataTransfer, SIGNAL(transferFinished()), this, SLOT(dataTransferFinished()));
 
 	dataTransfer->start();
+
+	accessLog.setDataTransferActive(true);
 }
 
 void FtpConnection::dataTransferFinished()
 {
+	accessLog.setDataTransferActive(false, dataTransfer->bytesTransfered());
+
 	dataTransfer->deleteLater();
 	dataTransfer = 0;
-
-	m_logFormatter.log(Logger::Debug, "transfer finished");
 
 	qDebug() << "Data transfer finished";
 }

@@ -5,6 +5,7 @@ AccessLogMessage::AccessLogMessage()
 	m_clientPort = 0;
 	m_serverPort = 0;
 	m_vars = 0;
+	m_encrypted = false;
 }
 
 AccessLogMessage::AccessLogMessage(LogFormatter *fmt)
@@ -51,6 +52,11 @@ AccessLogMessage& AccessLogMessage::client(QHostAddress host, quint16 port)
 	}
 
 	return *this;
+}
+
+AccessLogMessage& AccessLogMessage::encrypted()
+{
+	m_encrypted = true;
 }
 
 AccessLogMessage& AccessLogMessage::login(QString user)
@@ -103,6 +109,21 @@ AccessLogMessage& AccessLogMessage::status(QString code, QString msg)
 	return *this;
 }
 
+void AccessLogMessage::setDataTransferActive(bool active, quint64 bytes)
+{
+	if(m_data && !active && m_waitReason == DataTransfer && bytes > 0)
+	{
+		LogFormatter f(m_waitingMsg, 0);
+		f.set("bytes_sent", bytes);
+		m_currentFormatter.log(Logger::Info, f.format());
+
+		m_waitReason = NoReason;
+		m_waitingMsg.clear();
+	}
+
+	m_data = active;
+}
+
 void AccessLogMessage::send()
 {
 	if((m_vars & CommandId) != CommandId)
@@ -117,7 +138,7 @@ void AccessLogMessage::send()
 	if((m_vars & StatusString) != StatusString)
 		m_currentFormatter.set("status_str", "");
 
-	if((m_vars & BytesSent) != BytesSent)
+	if(!m_data && (m_vars & BytesSent) != BytesSent)
 		m_currentFormatter.set("bytes_sent", 0);
 
 	m_currentFormatter.set("user", m_user.isEmpty() ? "-" : m_user);
@@ -132,11 +153,24 @@ void AccessLogMessage::send()
 	m_currentFormatter.set("server_port", m_serverPort);
 
 	m_currentFormatter.set("proxy", m_serverPort > 0 ? "p" : "-");
+	m_currentFormatter.set("encryption", m_encrypted ? "e" : "-");
 
 	if(m_clientAddr.isNull())
 	{
 		m_waitingMsg = m_currentFormatter.format();
 		m_waitReason = ClientMissing;
+
+	} else if(m_data) {
+		if(m_waitReason == DataTransfer)
+		{
+			LogFormatter f(m_waitingMsg, 0);
+			f.set("bytes_sent", 0);
+
+			m_currentFormatter.log(Logger::Info, f.format());
+		}
+
+		m_waitingMsg = m_currentFormatter.format();
+		m_waitReason = DataTransfer;
 
 	} else {
 		m_currentFormatter.log(Logger::Info);

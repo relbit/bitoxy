@@ -19,7 +19,8 @@ public:
 		ClientPort=128,
 		ServerAddr=256,
 		ServerPort=512,
-		Proxy=1024
+		Proxy=1024,
+		Encryption=2048
 	};
 
 	enum WaitReason {
@@ -34,6 +35,7 @@ public:
 	void setFormatter(LogFormatter *fmt);
 	bool hasClient() const;
 	AccessLogMessage& client(QHostAddress host, quint16 port);
+	AccessLogMessage& encrypted();
 	AccessLogMessage& login(QString user);
 	AccessLogMessage& proxyOn(QHostAddress host, quint16 port);
 	AccessLogMessage& proxyOff();
@@ -41,6 +43,7 @@ public:
 	AccessLogMessage& sentBytes(quint64 bytes);
 	AccessLogMessage& status(int code, QString msg);
 	AccessLogMessage& status(QString code, QString msg);
+	void setDataTransferActive(bool active, quint64 bytes = 0);
 	void send();
 	void reset();
 
@@ -52,6 +55,8 @@ private:
 	quint16 m_clientPort;
 	QHostAddress m_serverAddr;
 	quint16 m_serverPort;
+	bool m_encrypted;
+	bool m_data;
 	int m_vars;
 	QString m_waitingMsg;
 	WaitReason m_waitReason;
