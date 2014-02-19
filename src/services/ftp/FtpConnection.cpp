@@ -21,7 +21,7 @@ FtpConnection::FtpConnection(QObject *parent) :
 	loggedOnServer(false)
 {
 	connect(this, SIGNAL(stateChanged(QAbstractSocket::SocketState)), this, SLOT(controlConnectionStateChange(QAbstractSocket::SocketState)));
-//	connect(this, SIGNAL(connected()), this, SLOT(sendGreetings()));
+	connect(this, SIGNAL(connected()), this, SLOT(connectionEstablished()));
 	connect(this, SIGNAL(readyRead()), this, SLOT(processCommand()));
 	//connect(this, SIGNAL(disconnected()), this, SLOT(disconnectDataConnection())); FIXME?
 //	connect(&dataTransfer, SIGNAL(clientConnected(QSslSocket*)), this, SLOT(handleDataTransfer(QSslSocket*)));
@@ -54,21 +54,45 @@ void FtpConnection::applySettings(QHash<QString, QVariant> &settings)
 	}
 }
 
+void FtpConnection::connectionEstablished()
+{
+	qDebug() << "CONNECTIN ESTABLISHED" << peerAddress();
+}
+
 void FtpConnection::sendGreetings()
 {
+	accessLog.cmd(++m_cmdCount, "new connection");
+
 	replyClient(220, "Bitoxy at your service.");
 }
 
-void FtpConnection::replyClient(QString msg)
+void FtpConnection::replyClient(QString msg, bool logged)
 {
 	qDebug() << "Client <-" << msg;
 
+	if(!logged && msg.length() > 3 && (msg[3] == ' ' || msg[3] == '-'))
+	{
+		QString code = msg.section(msg[3], 0, 0);
+
+		if(code.length() == 3)
+		{
+			accessLog.status(code, msg.section(msg[3], 1, -1));
+			accessLog.send();
+		}
+	}
+
+	qDebug() << "Perr addr" << peerAddress();
+
 	write((msg + "\r\n").toAscii());
+
+	qDebug() << "Perr addr" << peerAddress();
 }
 
 void FtpConnection::replyClient(int code, QString msg)
 {
-	replyClient(QString("%1 %2").arg(code).arg(msg));
+	accessLog.status(code, msg).send();
+
+	replyClient(QString("%1 %2").arg(code).arg(msg), true);
 }
 
 void FtpConnection::replyServer(QString msg)
@@ -87,6 +111,9 @@ void FtpConnection::replyServer(QString cmd, QString msg)
 
 void FtpConnection::processCommand()
 {
+	if(!accessLog.hasClient())
+		accessLog.client(peerAddress(), peerPort());
+
 	while(bytesAvailable())
 	{
 		QByteArray rawMsg = readLine();
@@ -96,8 +123,14 @@ void FtpConnection::processCommand()
 		QString cmd = msg.section(' ', 0, 0);
 
 		if(!cmd.compare("PASS", Qt::CaseInsensitive))
+		{
 			qDebug() << "Client ->" << "\"PASS ****\"";
-		else qDebug() << "Client ->" << msg;
+			accessLog.cmd(++m_cmdCount, "PASS ****");
+
+		} else {
+			qDebug() << "Client ->" << msg;
+			accessLog.cmd(++m_cmdCount, msg);
+		}
 
 		if(!cmd.compare("USER", Qt::CaseInsensitive))
 		{
@@ -107,6 +140,7 @@ void FtpConnection::processCommand()
 			{
 				//targetServer->write(rawMsg);
 				replyClient(503, "You are already logged in.");
+
 			} else {
 				if(s_forceSsl && !useSsl)
 				{
@@ -124,6 +158,7 @@ void FtpConnection::processCommand()
 
 				if(targetServer)
 				{
+					accessLog.proxyOff();
 					targetServer->deleteLater();
 					targetServer = 0;
 				}
@@ -144,6 +179,7 @@ void FtpConnection::processCommand()
 					enqueueServerCommand(Greetings);
 					waitForCommand = true;
 					commandSent = true;
+
 				} else {
 					replyClient(331, "Please specify the password.");
 				}
@@ -414,6 +450,7 @@ void FtpConnection::forwardTargetServerReply()
 				if(rc == "230")
 				{
 					loggedOnServer = true;
+					accessLog.login(userName);
 
 					if(!useSsl && s_proxySslMode == FtpServer::Explicit)
 					{
@@ -595,12 +632,20 @@ void FtpConnection::controlConnectionStateChange(QAbstractSocket::SocketState so
 	qDebug() << "Control connection state changed to" << socketState;
 
 	if(socketState == QAbstractSocket::ConnectedState)
+	{
+		qDebug() << "Perr addr" << peerAddress();
+
+		accessLog.client(peerAddress(), peerPort());
+
 		sendGreetings();
+	}
 }
 
 void FtpConnection::controlConnectionEstablished()
 {
 	qDebug() << "Control connection established";
+
+	accessLog.proxyOn(targetServer->peerAddress(), targetServer->peerPort());
 }
 
 void FtpConnection::targetServerConnectionEncrypted()
@@ -614,6 +659,8 @@ void FtpConnection::targetServerConnectionEncrypted()
 void FtpConnection::targetServerConnectionError(QAbstractSocket::SocketError error)
 {
 	qDebug() << "Error on control connection to target server:" << error;
+
+	accessLog.proxyOff();
 
 	if(loggedOnServer)
 	{
@@ -695,6 +742,8 @@ void FtpConnection::dataTransferFinished()
 {
 	dataTransfer->deleteLater();
 	dataTransfer = 0;
+
+	m_logFormatter.log(Logger::Debug, "transfer finished");
 
 	qDebug() << "Data transfer finished";
 }

@@ -32,6 +32,7 @@ public:
 	quint16 serverServerPort();
 	void setClientReadBufferSize(quint32 size);
 	void setServerReadBufferSize(quint32 size);
+	quint64 bytesTransfered() const;
 	
 signals:
 	void transferFinished();
@@ -65,6 +66,7 @@ private:
 	bool serverReady;
 	bool clientDone;
 	bool serverDone;
+	quint64 m_bytesTransfered;
 
 private slots:
 	// Naming from the Bitoxy point of view

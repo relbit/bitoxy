@@ -19,6 +19,8 @@
 #include "routers/StaticRouter.h"
 #include "routers/SqlRouter.h"
 #include "services/ftp/FtpServer.h"
+#include "Logger.h"
+#include "loggers/SyslogLogger.h"
 
 QFile* Bitoxy::logFile = 0;
 QMutex Bitoxy::mutex;
@@ -63,6 +65,7 @@ bool Bitoxy::init(QString config)
 
 	QStringList groups = cfg.childGroups();
 	QHash<QString, int> routers;
+	QHash<QString, Logger*> loggers;
 
 	QString user, group;
 	uid_t uid = geteuid();
@@ -122,6 +125,7 @@ bool Bitoxy::init(QString config)
 			QHostAddress hostAddr;
 			quint16 port;
 			QString router;
+			QString accessLog;
 			int routerId = 0;
 
 			addrs = cfg.value("Host").toStringList();
@@ -148,6 +152,12 @@ bool Bitoxy::init(QString config)
 					routerId = routers[router];
 				}
 
+				if(!(accessLog = cfg.value("AccessLog").toString()).isEmpty() && !loggers.contains(accessLog))
+				{
+					qWarning() << "Access log" << accessLog << "not found";
+					continue;
+				}
+
 #ifdef SERVICE_FTP
 				if(!type[1].compare("ftp", Qt::CaseInsensitive))
 				{
@@ -166,6 +176,14 @@ bool Bitoxy::init(QString config)
 					);
 
 					server->setRouter(routerId);
+
+					if(!accessLog.isEmpty())
+					{
+						LogFormatter fmt(loggers[accessLog]);
+						fmt.set("type", "access");
+
+						server->setLogFormatter(fmt);
+					}
 				}
 			}
 
@@ -184,6 +202,14 @@ bool Bitoxy::init(QString config)
 			{
 				qDebug() << "Registered router" << type[1];
 				routers[ type[2] ] = Router::registerRouter(router);
+			}
+
+		} else if(!type[0].compare("log", Qt::CaseInsensitive)) {
+			if(!type[1].compare("syslog", Qt::CaseInsensitive))
+			{
+				loggers[type[2]] = new SyslogLogger(cfg, this);
+
+				qDebug() << "Registered logger" << type[2];
 			}
 		}
 
@@ -304,6 +330,8 @@ void Bitoxy::processNewConnection(IncomingConnection connection)
 	//workers.at(index)->addConnection(connection);
 
 //	emit incomingConnectionQueued();
+
+	connection.logFormatter.set("worker", index);
 
 	QMetaObject::invokeMethod(workers.at(index), "addConnection", Qt::QueuedConnection, Q_ARG(IncomingConnection, connection));
 }

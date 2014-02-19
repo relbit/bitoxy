@@ -46,6 +46,7 @@ void Worker::addConnection(IncomingConnection incomingConnection)
 	}
 
 	con->applySettings(incomingConnection.settings);
+	con->setLogFormatter(incomingConnection.logFormatter);
 	con->setSocketDescriptor(incomingConnection.socketDescriptor);
 
 	connect(con, SIGNAL(disconnected(BaseConnection*)), this, SLOT(connectionDisconnected(BaseConnection*)));

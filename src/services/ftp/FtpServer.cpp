@@ -77,6 +77,8 @@ void FtpServer::incomingConnection(int socketDescriptor)
 
 	con.serviceType = BaseTcpServer::FtpService;
 	con.socketDescriptor = socketDescriptor;
+	con.logFormatter = m_formatter;
+	con.logFormatter.set("conn_id", ++m_connCount);
 
 	con.settings["Ssl"] = s_ssl;
 	con.settings["ForceSsl"] = s_forceSsl;

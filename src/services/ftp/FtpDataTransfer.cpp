@@ -18,7 +18,8 @@ FtpDataTransfer::FtpDataTransfer(TransferMode clientMode, TransferMode serverMod
 	clientReady(false),
 	serverReady(false),
 	clientDone(false),
-	serverDone(false)
+	serverDone(false),
+	m_bytesTransfered(0)
 {
 	connect(&clientServer, SIGNAL(clientConnected(QSslSocket*)), this, SLOT(clientConnectedPassive(QSslSocket*)));
 	connect(&serverServer, SIGNAL(clientConnected(QSslSocket*)), this, SLOT(serverConnectedActive(QSslSocket*)));
@@ -82,6 +83,11 @@ void FtpDataTransfer::setClientReadBufferSize(quint32 size)
 void FtpDataTransfer::setServerReadBufferSize(quint32 size)
 {
 	serverBufferSize = size;
+}
+
+quint64 FtpDataTransfer::bytesTransfered() const
+{
+	return m_bytesTransfered;
 }
 
 QHostAddress FtpDataTransfer::clientServerAddress()

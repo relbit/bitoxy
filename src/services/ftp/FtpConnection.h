@@ -23,7 +23,7 @@ signals:
 public slots:
 
 protected:
-	void replyClient(QString msg);
+	void replyClient(QString msg, bool logged = false);
 	void replyClient(int code, QString msg);
 	void replyServer(QString msg);
 	void replyServer(QString cmd, QString msg);
@@ -104,6 +104,7 @@ private:
 	QPair<QHostAddress, quint16> lastPortAddr;
 
 private slots:
+	void connectionEstablished();
 	void sendGreetings();
 	void processCommand();
 	void forwardTargetServerReply();

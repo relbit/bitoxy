@@ -25,7 +25,11 @@ SOURCES += src/Bitoxy.cpp \
     src/services/ftp/FtpServer.cpp \
     src/services/ftp/FtpConnection.cpp \
     src/services/ftp/FtpDataTransfer.cpp \
-    src/services/ftp/FtpDataTransferServer.cpp
+    src/services/ftp/FtpDataTransferServer.cpp \
+    src/Logger.cpp \
+    src/loggers/SyslogLogger.cpp \
+    src/LogFormatter.cpp \
+    src/AccessLogMessage.cpp
 
 HEADERS += \
     src/Bitoxy.h \
@@ -38,7 +42,11 @@ HEADERS += \
     src/services/ftp/FtpServer.h \
     src/services/ftp/FtpConnection.h \
     src/services/ftp/FtpDataTransfer.h \
-    src/services/ftp/FtpDataTransferServer.h
+    src/services/ftp/FtpDataTransferServer.h \
+    src/Logger.h \
+    src/loggers/SyslogLogger.h \
+    src/LogFormatter.h \
+    src/AccessLogMessage.h
 
 OTHER_FILES += \
     bitoxy.conf

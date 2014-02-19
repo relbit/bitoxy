@@ -9,6 +9,7 @@
 #include <QHash>
 
 #include "Router.h"
+#include "LogFormatter.h"
 
 struct IncomingConnection;
 
@@ -28,6 +29,7 @@ public:
 
 	explicit BaseTcpServer(QSettings &settings, QObject *parent = 0);
 	void setRouter(int r);
+	void setLogFormatter(LogFormatter &fmt);
 	
 signals:
 	void newConnection(IncomingConnection incomingConnection);
@@ -38,6 +40,8 @@ protected:
 	QVariant findConfigValue(QSettings &settings, QString var);
 
 	int router;
+	LogFormatter m_formatter;
+	quint64 m_connCount;
 
 private:
 	
@@ -51,12 +55,14 @@ struct IncomingConnection
 		serviceType = other.serviceType;
 		socketDescriptor = other.socketDescriptor;
 		settings = other.settings;
+		logFormatter = other.logFormatter;
 	}
 	~IncomingConnection(){}
 
 	BaseTcpServer::ServiceType serviceType;
 	int socketDescriptor;
 	QHash<QString, QVariant> settings;
+	LogFormatter logFormatter;
 };
 
 #endif // BASETCPSERVER_H
