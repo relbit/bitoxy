@@ -49,4 +49,5 @@ HEADERS += \
     src/AccessLogMessage.h
 
 OTHER_FILES += \
-    bitoxy.conf
+    bitoxy.conf \
+    LICENSE
