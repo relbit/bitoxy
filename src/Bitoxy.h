@@ -20,6 +20,8 @@ public:
 	bool init(QString config);
 	void installLogFileHandler(QString &logFilePath);
 	static void logFileHandler(QtMsgType type, const char *msg);
+	static void setDebug(bool enable);
+	static bool showDebug();
 	
 signals:
 //	void incomingConnectionQueued();
@@ -31,6 +33,7 @@ private:
 	QList<Worker*> workers;
 	static QFile *logFile;
 	static QMutex mutex;
+	static bool m_debug;
 
 private slots:
 	void processNewConnection(IncomingConnection connection);

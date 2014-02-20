@@ -24,6 +24,7 @@
 
 QFile* Bitoxy::logFile = 0;
 QMutex Bitoxy::mutex;
+bool Bitoxy::m_debug = false;
 
 Bitoxy::Bitoxy(QObject *parent) :
         QObject(parent)
@@ -264,14 +265,27 @@ bool Bitoxy::init(QString config)
 
 void Bitoxy::installLogFileHandler(QString &logFilePath)
 {
-	logFile = new QFile(logFilePath, this);
-
-	if(logFile->open(QIODevice::Append))
+	if(logFilePath.isEmpty())
 	{
-		qInstallMsgHandler(Bitoxy::logFileHandler);
+		logFile = new QFile(this);
+
+		if(!logFile->open(stdout, QIODevice::WriteOnly))
+		{
+			qWarning() << "Unable to open stdout for logging:" << logFile->errorString();
+			return;
+		}
+
 	} else {
-		qWarning() << "Unable to open log file" << logFilePath << "in append mode:" << logFile->errorString();
+		logFile = new QFile(logFilePath, this);
+
+		if(!logFile->open(QIODevice::Append))
+		{
+			qWarning() << "Unable to open log file" << logFilePath << "in append mode:" << logFile->errorString();
+			return;
+		}
 	}
+
+	qInstallMsgHandler(Bitoxy::logFileHandler);
 }
 
 void Bitoxy::logFileHandler(QtMsgType type, const char *msg)
@@ -279,23 +293,34 @@ void Bitoxy::logFileHandler(QtMsgType type, const char *msg)
 	QMutexLocker locker(&mutex);
 
 	QTextStream out(logFile);
-	QString str = "%1: %2\n";
+	QString str = QString("[%1 %2]: %3\n").arg(QDateTime::currentDateTime().toString());
 
 	switch (type)
 	{
 	case QtDebugMsg:
-		out << str.arg("[D]").arg(msg);
+		if(Bitoxy::showDebug())
+			out << str.arg("D").arg(msg);
 		break;
 	case QtWarningMsg:
-		out << str.arg("[W]").arg(msg);
+		out << str.arg("WARNING").arg(msg);
 		break;
 	case QtCriticalMsg:
-		out << str.arg("[CRITICAL]").arg(msg);
+		out << str.arg("CRITICAL").arg(msg);
 		break;
 	case QtFatalMsg:
-		out << str.arg("[FATAL]").arg(msg);
+		out << str.arg("FATAL").arg(msg);
 		abort();
 	}
+}
+
+void Bitoxy::setDebug(bool enable)
+{
+	m_debug = enable;
+}
+
+bool Bitoxy::showDebug()
+{
+	return m_debug;
 }
 
 void Bitoxy::processNewConnection(IncomingConnection connection)
@@ -356,6 +381,19 @@ void savePid(QString file, pid_t pid)
 	f.close();
 }
 
+void help()
+{
+	QTextStream out(stdout);
+	out << "Usage: bitoxy [-c CONFIG] [-d] [-p PIDFILE] [-g]\n";
+	out << "\nOptions:\n";
+	out << "    -c, --config=FILE    Specify config file, defaults to /etc/bitoxy.conf\n";
+	out << "    -d                   Daemonize, by default stay on foreground\n";
+	out << "    -g, --debug          Show debug messages, only errors are printed if not enabled";
+	out << "    -p, --pidfile=FILE   Save PID to file\n";
+	out << "    -l, --logfile=FILE   Redirect output to file\n";
+	out << "    -h, --help           Show this message\n";
+}
+
 int main(int argc, char *argv[])
 {
 	QCoreApplication a(argc, argv);
@@ -370,14 +408,16 @@ int main(int argc, char *argv[])
 	int option_index = 0;
 
 	static struct option long_options[] = {
-		{"config", required_argument, 0, 'c'},
-		{"daemon", no_argument, &daemon, 1},
-		{"pidfile", required_argument, 0, 'p'},
-		{"logfile", required_argument, 0, 'l'},
+		{"config",  required_argument, 0,      'c'},
+		{"daemon",  no_argument,       &daemon, 1 },
+		{"debug",   no_argument,       0,       1 },
+		{"pidfile", required_argument, 0,      'p'},
+		{"logfile", required_argument, 0,      'l'},
+		{"help",    no_argument,       0,      'h'},
 		{0, 0, 0, 0}
 	};
 
-	while((c = getopt_long(argc, argv, "c:dp:l:", long_options, &option_index)) != -1)
+	while((c = getopt_long(argc, argv, "c:dgp:l:h", long_options, &option_index)) != -1)
 	{
 		switch(c)
 		{
@@ -389,12 +429,19 @@ int main(int argc, char *argv[])
 		case 'd':
 			daemon = 1;
 			break;
+		case 'g':
+			bit.setDebug(true);
+			break;
 		case 'p':
 			pidFile = optarg;
 			break;
 		case 'l':
 			logFilePath = optarg;
 			break;
+		case 'h':
+			bit.installLogFileHandler(logFilePath);
+			help();
+			return 0;
 		case '?':
 			return 1;
 		default:
@@ -403,15 +450,9 @@ int main(int argc, char *argv[])
 		}
 	}
 
-	if(!logFilePath.isEmpty())
-	{
-		if(daemon)
-			bit.installLogFileHandler(logFilePath);
-		else
-			qDebug() << "Not using specified log file when running on foreground";
-	}
+	bit.installLogFileHandler(logFilePath);
 
-	qDebug() << "Bitoxy starting at" << QDateTime::currentDateTime().toString();
+	qDebug() << "Bitoxy starting";
 
 	if(daemon)
 	{
