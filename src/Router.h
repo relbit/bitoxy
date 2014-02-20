@@ -8,6 +8,7 @@ class Router
 {
 public:
 	Router(QSettings &settings);
+	virtual ~Router();
 	virtual QPair<QString, quint16> findRouteForUsername(QString username) = 0;
 	static int registerRouter(Router *router);
 	static QPair<QString, quint16> findRouteForUsername(int router, QString username);

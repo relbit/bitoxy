@@ -11,7 +11,7 @@ class SqlRouter : public Router
 {
 public:
 	SqlRouter(QSettings &settings);
-	~SqlRouter();
+	virtual ~SqlRouter();
 	QPair<QString, quint16> findRouteForUsername(QString username);
 
 private:

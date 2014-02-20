@@ -6,6 +6,12 @@ QList<Router*> Router::m_routers;
 
 Router::Router(QSettings &settings)
 {
+	Q_UNUSED(settings);
+}
+
+Router::~Router()
+{
+
 }
 
 int Router::registerRouter(Router *router)
