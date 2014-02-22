@@ -18,10 +18,12 @@ public:
 	explicit Bitoxy(QObject *parent = 0);
 	~Bitoxy();
 	bool init(QString config);
+	void finish();
 	void installLogFileHandler(QString &logFilePath);
 	static void logFileHandler(QtMsgType type, const char *msg);
 	static void setDebug(bool enable);
 	static bool showDebug();
+	static void gracefullyExit(int sig);
 	
 signals:
 //	void incomingConnectionQueued();
@@ -31,6 +33,7 @@ public slots:
 
 private:
 	QList<Worker*> workers;
+	QHash<QString, Logger*> loggers;
 	static QFile *logFile;
 	static QMutex mutex;
 	static bool m_debug;

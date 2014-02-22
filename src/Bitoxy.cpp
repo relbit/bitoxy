@@ -13,13 +13,13 @@
 #include <pwd.h>
 #include <grp.h>
 #include <getopt.h>
+#include <signal.h>
 
 #include "Bitoxy.h"
 #include "Router.h"
 #include "routers/StaticRouter.h"
 #include "routers/SqlRouter.h"
 #include "services/ftp/FtpServer.h"
-#include "Logger.h"
 #include "loggers/SyslogLogger.h"
 
 QFile* Bitoxy::logFile = 0;
@@ -34,21 +34,7 @@ Bitoxy::Bitoxy(QObject *parent) :
 
 Bitoxy::~Bitoxy()
 {
-	qDebug() << "Stopping workers";
-
-	foreach(Worker *w, workers)
-		w->thread()->quit();
-
-	qDebug() << "Waiting for workers to quit...";
-
-	foreach(Worker *w, workers)
-	{
-		w->thread()->wait();
-		delete w;
-	}
-
-	QList<Router*> routers = Router::routers();
-	qDeleteAll(routers);
+	finish();
 }
 
 bool Bitoxy::init(QString config)
@@ -66,7 +52,6 @@ bool Bitoxy::init(QString config)
 
 	QStringList groups = cfg.childGroups();
 	QHash<QString, int> routers;
-	QHash<QString, Logger*> loggers;
 
 	QString user, group;
 	uid_t uid = geteuid();
@@ -263,6 +248,27 @@ bool Bitoxy::init(QString config)
 	return true;
 }
 
+void Bitoxy::finish()
+{
+	qDebug() << "Stopping workers";
+
+	foreach(Worker *w, workers)
+		w->thread()->quit();
+
+	qDebug() << "Waiting for workers to quit...";
+
+	foreach(Worker *w, workers)
+	{
+		w->thread()->wait();
+		delete w;
+	}
+
+	QList<Router*> routers = Router::routers();
+	qDeleteAll(routers);
+
+	qDeleteAll(loggers);
+}
+
 void Bitoxy::installLogFileHandler(QString &logFilePath)
 {
 	if(logFilePath.isEmpty())
@@ -321,6 +327,26 @@ void Bitoxy::setDebug(bool enable)
 bool Bitoxy::showDebug()
 {
 	return m_debug;
+}
+
+void Bitoxy::gracefullyExit(int sig)
+{
+	Q_UNUSED(sig);
+
+	switch(sig)
+	{
+	case SIGKILL:
+		qDebug() << "Received SIGKILL";
+		break;
+	case SIGINT:
+		qDebug() << "Received SIGINT";
+		break;
+	default:
+		qDebug() << "Received unhandled signal" << sig;
+	}
+
+	qDebug() << "Gracefully exit";
+	qApp->quit();
 }
 
 void Bitoxy::processNewConnection(IncomingConnection connection)
@@ -388,7 +414,7 @@ void help()
 	out << "\nOptions:\n";
 	out << "    -c, --config=FILE    Specify config file, defaults to /etc/bitoxy.conf\n";
 	out << "    -d                   Daemonize, by default stay on foreground\n";
-	out << "    -g, --debug          Show debug messages, only errors are printed if not enabled";
+	out << "    -g, --debug          Show debug messages, only errors are printed if not enabled\n";
 	out << "    -p, --pidfile=FILE   Save PID to file\n";
 	out << "    -l, --logfile=FILE   Redirect output to file\n";
 	out << "    -h, --help           Show this message\n";
@@ -398,6 +424,7 @@ int main(int argc, char *argv[])
 {
 	QCoreApplication a(argc, argv);
 	Bitoxy bit;
+	int rc;
 
 	QString config = "/etc/bitoxy.conf";
 	QString pidFile;
@@ -469,18 +496,31 @@ int main(int argc, char *argv[])
 			}
 
 			return 0;
+
 		} else if(pid == -1) {
 			qDebug() << "Unable to fork";
 		}
-	} else if(!pidFile.isEmpty())
+
+	} else if(!pidFile.isEmpty()) {
 		savePid(pidFile, getpid());
+	}
+
+	struct sigaction sa;
+	memset(&sa, 0, sizeof(sa));
+	sa.sa_handler = Bitoxy::gracefullyExit;
+	sigaction(SIGTERM, &sa, NULL);
+	sigaction(SIGINT, &sa, NULL);
 
 	qDebug() << "Using config" << config;
 
 	if(bit.init(config))
-		return a.exec();
-	else {
+	{
+		rc = a.exec();
+
+	} else {
 		qWarning() << "Bitoxy init failed, exiting.";
 		return 2;
 	}
+
+	return rc;
 }

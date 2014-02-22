@@ -1,10 +1,12 @@
 #include "SyslogLogger.h"
 
+#include <QDebug>
 #include <syslog.h>
 
 SyslogHandler* SyslogHandler::m_instance = 0;
 
 SyslogHandler::SyslogHandler()
+	: m_refCount(0)
 {
 	openlog("bitoxy", 0, LOG_DAEMON);
 }
@@ -30,6 +32,22 @@ void SyslogHandler::log(Logger::Level level, QString &msg)
 	syslog(translateLogLevel(level), "%s", str);
 }
 
+void SyslogHandler::registerLogger()
+{
+	m_refCount++;
+}
+
+void SyslogHandler::release()
+{
+	if(--m_refCount == 0)
+	{
+		delete this;
+		m_instance = 0;
+
+		qDebug() << "Freeing syslog handler";
+	}
+}
+
 int SyslogHandler::translateLogLevel(Logger::Level level)
 {
 	switch(level)
@@ -52,13 +70,19 @@ int SyslogHandler::translateLogLevel(Logger::Level level)
 		return LOG_DEBUG;
 	default:
 		Q_ASSERT_X(0, "syslog handler", "unsupported log level");
+		return 0;
 	}
 }
 
 SyslogLogger::SyslogLogger(QSettings &settings, QObject *parent) :
 	Logger(settings, parent)
 {
+	SyslogHandler::instance()->registerLogger();
+}
 
+SyslogLogger::~SyslogLogger()
+{
+	SyslogHandler::instance()->release();
 }
 
 void SyslogLogger::log(Level level, QString& msg)

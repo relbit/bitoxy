@@ -8,9 +8,12 @@ class SyslogHandler
 public:
 	static SyslogHandler* instance();
 	void log(Logger::Level level, QString &msg);
+	void registerLogger();
+	void release();
 
 private:
 	static SyslogHandler *m_instance;
+	int m_refCount;
 
 	SyslogHandler();
 	~SyslogHandler();
@@ -22,6 +25,7 @@ class SyslogLogger : public Logger
 	Q_OBJECT
 public:
 	explicit SyslogLogger(QSettings &settings, QObject *parent = 0);
+	virtual ~SyslogLogger();
 	void log(Level level, QString& msg);
 
 };

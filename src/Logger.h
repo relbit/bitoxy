@@ -20,6 +20,7 @@ public:
 	};
 
 	explicit Logger(QSettings &settings, QObject *parent = 0);
+	virtual ~Logger();
 	virtual void log(Level level, QString& msg);
 	QString format();
 

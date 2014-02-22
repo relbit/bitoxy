@@ -8,6 +8,11 @@ Logger::Logger(QSettings &settings, QObject *parent) :
 	m_format = settings.value("Format").toString();
 }
 
+Logger::~Logger()
+{
+
+}
+
 void Logger::log(Level level, QString &msg)
 {
 	qDebug() << "[" << levelToString(level) << "] " << msg;
