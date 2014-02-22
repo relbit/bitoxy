@@ -40,5 +40,6 @@ QString Logger::levelToString(Level level)
 		return "DEBUG";
 	default:
 		Q_ASSERT_X(0, "base logger", "unsupported log level");
+		return "UNDEFINED";
 	}
 }

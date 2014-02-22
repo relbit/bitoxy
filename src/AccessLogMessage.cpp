@@ -1,5 +1,7 @@
 #include "AccessLogMessage.h"
 
+#include <QDateTime>
+
 AccessLogMessage::AccessLogMessage()
 {
 	m_clientPort = 0;
@@ -57,6 +59,8 @@ AccessLogMessage& AccessLogMessage::client(QHostAddress host, quint16 port)
 AccessLogMessage& AccessLogMessage::encrypted()
 {
 	m_encrypted = true;
+
+	return *this;
 }
 
 AccessLogMessage& AccessLogMessage::login(QString user)
@@ -154,6 +158,8 @@ void AccessLogMessage::send()
 
 	m_currentFormatter.set("proxy", m_serverPort > 0 ? "p" : "-");
 	m_currentFormatter.set("encryption", m_encrypted ? "e" : "-");
+
+	m_currentFormatter.set("datetime", QDateTime::currentDateTime().toString());
 
 	if(m_clientAddr.isNull())
 	{
