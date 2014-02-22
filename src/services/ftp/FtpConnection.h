@@ -74,9 +74,9 @@ private:
 	QPair<QHostAddress, quint16> decodeExtendedHostAndPort(QString msg);
 	QString encodeHostAndPort(QHostAddress addr, quint16 port);
 	QString encodeExtendedHostAndPort(QHostAddress addr, quint16 port);
-	void engageActiveDataConnection(QHostAddress host, quint16 port);
-	void engagePassiveDataConnection(QHostAddress host, quint16 port, FtpCommandFlags flags = NoFlags);
-	void engagePassiveToActiveDataConnectionTranslation();
+	bool engageActiveDataConnection(QHostAddress host, quint16 port);
+	bool engagePassiveDataConnection(QHostAddress host, quint16 port, FtpCommandFlags flags = NoFlags);
+	bool engagePassiveToActiveDataConnectionTranslation();
 
 	FtpDataTransfer *dataTransfer;
 	TargetServerConnectionState targetServerConnectionState;

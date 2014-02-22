@@ -9,10 +9,10 @@ FtpDataTransfer::FtpDataTransfer(TransferMode clientMode, TransferMode serverMod
 	serverSocket(0),
 	clientListen(QHostAddress::Any),
 	serverListen(QHostAddress::Any),
-	connected(0),
-	disconnected(0),
 	clientSsl(false),
 	serverSsl(false),
+	connected(0),
+	disconnected(0),
 	clientBufferSize(32768),
 	serverBufferSize(32768),
 	clientReady(false),
@@ -29,6 +29,8 @@ FtpDataTransfer::~FtpDataTransfer()
 {
 	clientSocket = 0;
 	serverSocket = 0;
+
+	qDebug() << "Deleting data transfer";
 }
 
 void FtpDataTransfer::setClient(QHostAddress host, quint16 port)
@@ -110,7 +112,7 @@ quint16 FtpDataTransfer::serverServerPort()
 	return serverServer.serverPort();
 }
 
-void FtpDataTransfer::start()
+bool FtpDataTransfer::start()
 {
 	if(clientMode == Active)
 	{
@@ -140,7 +142,11 @@ void FtpDataTransfer::start()
 			clientSocket->connectToHost(clientAddress, clientPort);
 //		}
 	} else {
-		clientServer.listen(clientListen);
+		if(!clientServer.listen(clientListen))
+		{
+			qWarning() << "clientServer.listen() failed:" << serverServer.serverError() << serverServer.errorString();
+			return false;
+		}
 	}
 
 	if(serverMode == Passive)
@@ -171,8 +177,14 @@ void FtpDataTransfer::start()
 			serverSocket->connectToHost(serverAddress, serverPort);
 		}
 	} else {
-		serverServer.listen(serverListen);
+		if(!serverServer.listen(serverListen))
+		{
+			qWarning() << "serverServer.listen() failed:" << serverServer.serverError() << serverServer.errorString();
+			return false;
+		}
 	}
+
+	return true;
 }
 
 void FtpDataTransfer::clientConnectedActive()

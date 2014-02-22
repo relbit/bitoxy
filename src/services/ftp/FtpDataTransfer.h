@@ -38,7 +38,7 @@ signals:
 	void transferFinished();
 	
 public slots:
-	void start();
+	bool start();
 
 private:
 	TransferMode clientMode;

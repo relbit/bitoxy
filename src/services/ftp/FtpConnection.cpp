@@ -225,7 +225,11 @@ void FtpConnection::processCommand()
 						return;
 					}
 
-					engageActiveDataConnection(addr.first, addr.second);
+					if(!engageActiveDataConnection(addr.first, addr.second))
+					{
+						replyClient(425, "Cannot open data connection.");
+						return;
+					}
 
 					dispatchServerCommand(Port, encodeHostAndPort(dataTransfer->serverServerAddress(), dataTransfer->serverServerPort()));
 				}
@@ -247,7 +251,11 @@ void FtpConnection::processCommand()
 
 					qDebug() << "Proxying in ACTIVE mode";
 
-					engagePassiveToActiveDataConnectionTranslation();
+					if(!engagePassiveToActiveDataConnectionTranslation())
+					{
+						replyClient(425, "Cannot open data connection.");
+						return;
+					}
 
 					dispatchServerCommand(Port, encodeHostAndPort(dataTransfer->serverServerAddress(), dataTransfer->serverServerPort()), NoForwardResponse);
 					replyClient(227, QString("Entering Passive Mode (%1)").arg(encodeHostAndPort(dataTransfer->clientServerAddress(), dataTransfer->clientServerPort())));
@@ -283,7 +291,11 @@ void FtpConnection::processCommand()
 						return;
 					}
 
-					engageActiveDataConnection(addr.first, addr.second);
+					if(!engageActiveDataConnection(addr.first, addr.second))
+					{
+						replyClient(425, "Cannot open data connection.");
+						return;
+					}
 
 					dispatchServerCommand(Eprt, encodeExtendedHostAndPort(dataTransfer->serverServerAddress(), dataTransfer->serverServerPort()));
 				}
@@ -300,7 +312,12 @@ void FtpConnection::processCommand()
 				}
 
 				qDebug() << "Proxying in ACTIVE mode";
-				engagePassiveToActiveDataConnectionTranslation();
+
+				if(!engagePassiveToActiveDataConnectionTranslation())
+				{
+					replyClient(425, "Cannot open data connection.");
+					return;
+				}
 
 				dispatchServerCommand(Eprt, encodeExtendedHostAndPort(dataTransfer->serverServerAddress(), dataTransfer->serverServerPort()), NoForwardResponse);
 				replyClient(227, QString("Entering Extended Passive Mode (%1)").arg(encodeExtendedHostAndPort(dataTransfer->clientServerAddress(), dataTransfer->clientServerPort())));
@@ -477,7 +494,14 @@ void FtpConnection::forwardTargetServerReply()
 			case Pasv: {
 				QPair<QHostAddress, quint16> addr = decodeHostAndPort(msg);
 
-				engagePassiveDataConnection(addr.first, addr.second, fc->flags);
+				if(dataTransfer)
+					dataTransfer->deleteLater();
+
+				if(!engagePassiveDataConnection(addr.first, addr.second, fc->flags))
+				{
+					replyClient(425, "Cannot open data connection.");
+					break;
+				}
 
 //				qDebug() << "Internal FTP server is listening on" << addr.first << addr.second;
 
@@ -498,7 +522,14 @@ void FtpConnection::forwardTargetServerReply()
 			case Epsv: {
 				QPair<QHostAddress, quint16> addr = decodeExtendedHostAndPort(msg);
 
-				engagePassiveDataConnection(targetServer->peerAddress(), addr.second, fc->flags);
+				if(dataTransfer)
+					dataTransfer->deleteLater();
+
+				if(!engagePassiveDataConnection(targetServer->peerAddress(), addr.second, fc->flags))
+				{
+					replyClient(425, "Cannot open data connection.");
+					break;
+				}
 
 //				qDebug() << "Internal FTP server is listening on" << addr.first << addr.second;
 
@@ -666,7 +697,7 @@ void FtpConnection::targetServerConnectionError(QAbstractSocket::SocketError err
 		targetServerConnectionState = Failed;
 }
 
-void FtpConnection::engageActiveDataConnection(QHostAddress host, quint16 port)
+bool FtpConnection::engageActiveDataConnection(QHostAddress host, quint16 port)
 {
 	dataTransfer = new FtpDataTransfer(FtpDataTransfer::Active, FtpDataTransfer::Active, this);
 	dataTransfer->setClient(host, port);
@@ -685,12 +716,15 @@ void FtpConnection::engageActiveDataConnection(QHostAddress host, quint16 port)
 				sslKey
 	);
 
-	dataTransfer->start();
+	if(!dataTransfer->start())
+		return false;
 
 	accessLog.setDataTransferActive(true);
+
+	return true;
 }
 
-void FtpConnection::engagePassiveDataConnection(QHostAddress host, quint16 port, FtpCommandFlags flags)
+bool FtpConnection::engagePassiveDataConnection(QHostAddress host, quint16 port, FtpCommandFlags flags)
 {
 	if(flags & ActiveToPassiveTranslation)
 	{
@@ -713,12 +747,15 @@ void FtpConnection::engagePassiveDataConnection(QHostAddress host, quint16 port,
 
 	connect(dataTransfer, SIGNAL(transferFinished()), this, SLOT(dataTransferFinished()));
 
-	dataTransfer->start();
+	if(!dataTransfer->start())
+		return false;
 
 	accessLog.setDataTransferActive(true);
+
+	return true;
 }
 
-void FtpConnection::engagePassiveToActiveDataConnectionTranslation()
+bool FtpConnection::engagePassiveToActiveDataConnectionTranslation()
 {
 	dataTransfer = new FtpDataTransfer(FtpDataTransfer::Passive, FtpDataTransfer::Active, this);
 	dataTransfer->setClientListenAddress(localAddress());
@@ -734,9 +771,12 @@ void FtpConnection::engagePassiveToActiveDataConnectionTranslation()
 
 	connect(dataTransfer, SIGNAL(transferFinished()), this, SLOT(dataTransferFinished()));
 
-	dataTransfer->start();
+	if(!dataTransfer->start())
+		return false;
 
 	accessLog.setDataTransferActive(true);
+
+	return true;
 }
 
 void FtpConnection::dataTransferFinished()
