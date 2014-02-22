@@ -81,11 +81,7 @@ void FtpConnection::replyClient(QString msg, bool logged)
 		}
 	}
 
-	qDebug() << "Perr addr" << peerAddress();
-
 	write((msg + "\r\n").toAscii());
-
-	qDebug() << "Perr addr" << peerAddress();
 }
 
 void FtpConnection::replyClient(int code, QString msg)
@@ -635,8 +631,6 @@ void FtpConnection::controlConnectionStateChange(QAbstractSocket::SocketState so
 
 	if(socketState == QAbstractSocket::ConnectedState)
 	{
-		qDebug() << "Perr addr" << peerAddress();
-
 		accessLog.client(peerAddress(), peerPort());
 
 		sendGreetings();

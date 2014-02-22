@@ -159,7 +159,7 @@ void AccessLogMessage::send()
 	m_currentFormatter.set("proxy", m_serverPort > 0 ? "p" : "-");
 	m_currentFormatter.set("encryption", m_encrypted ? "e" : "-");
 
-	m_currentFormatter.set("datetime", QDateTime::currentDateTime().toString());
+	m_currentFormatter.set("datetime", QDateTime::currentDateTime().toString(Qt::ISODate));
 
 	if(m_clientAddr.isNull())
 	{
