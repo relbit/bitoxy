@@ -1,14 +1,15 @@
 #include "SyslogLogger.h"
 
 #include <QDebug>
-#include <syslog.h>
 
 SyslogHandler* SyslogHandler::m_instance = 0;
 
-SyslogHandler::SyslogHandler()
+SyslogHandler::SyslogHandler(int facility)
 	: m_refCount(0)
 {
-	openlog("bitoxy", 0, LOG_DAEMON);
+	qDebug() << "Opening connection to syslog with facility" << facility;
+
+	openlog("bitoxy", 0, facility);
 }
 
 SyslogHandler::~SyslogHandler()
@@ -16,10 +17,10 @@ SyslogHandler::~SyslogHandler()
 	closelog();
 }
 
-SyslogHandler* SyslogHandler::instance()
+SyslogHandler* SyslogHandler::instance(int facility)
 {
 	if(!m_instance)
-		m_instance = new SyslogHandler();
+		m_instance = new SyslogHandler(facility);
 
 	return m_instance;
 }
@@ -77,7 +78,46 @@ int SyslogHandler::translateLogLevel(Logger::Level level)
 SyslogLogger::SyslogLogger(QSettings &settings, QObject *parent) :
 	Logger(settings, parent)
 {
-	SyslogHandler::instance()->registerLogger();
+	QString rawFacility = settings.value("Facility", "daemon").toString();
+	int facility;
+	int locals[8] = {
+		LOG_LOCAL0,
+		LOG_LOCAL1,
+		LOG_LOCAL2,
+		LOG_LOCAL3,
+		LOG_LOCAL4,
+		LOG_LOCAL5,
+		LOG_LOCAL6,
+		LOG_LOCAL7
+	};
+
+	if(!rawFacility.compare("daemon"))
+	{
+		facility = LOG_DAEMON;
+
+	} else if(!rawFacility.compare("ftp")) {
+		facility = LOG_FTP;
+
+	} else if(rawFacility.startsWith("local")) {
+		bool ok;
+		int n = rawFacility.right(1).toInt(&ok);
+
+		if(!ok || n < 0 || n > 7)
+		{
+			qWarning() << "Unsupported syslog facility" << rawFacility << ", using daemon instead";
+			facility = LOG_DAEMON;
+		} else
+			facility = locals[n];
+
+	} else if(!rawFacility.compare("user")) {
+		facility = LOG_USER;
+
+	} else {
+		qWarning() << "Unsupported syslog facility" << rawFacility << ", using daemon instead";
+		facility = LOG_DAEMON;
+	}
+
+	SyslogHandler::instance(facility)->registerLogger();
 }
 
 SyslogLogger::~SyslogLogger()
