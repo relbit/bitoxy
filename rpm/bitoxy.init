@@ -1,0 +1,90 @@
+#!/bin/bash
+#
+# bitoxy        Startup script for Bitoxy
+#
+# chkconfig: - 80 15
+# description: Bitoxy is proxy for FTP/FTPS with the ability to route users \
+# 		to specified FTP servers based on their name.
+# processname: bitoxy
+# pidfile: /var/run/bitoxy.pid
+#
+### BEGIN INIT INFO
+# Provides: bitoxy
+# Required-Start: $local_fs $remote_fs $network $named
+# Required-Stop: $local_fs $remote_fs $network
+# Should-Start:
+# Short-Description: start and stop Bitoxy
+# Description: Bitoxy is proxy for FTP/FTPS with the ability to route users
+#              to specified FTP servers based on their name.
+### END INIT INFO
+
+# Source function library.
+. /etc/rc.d/init.d/functions
+
+BITOXY="/usr/bin/bitoxy"
+PIDFILE="/var/run/bitoxy.pid"
+LOGFILE="/var/log/bitoxy.log"
+CONFIG="/etc/bitoxy.conf"
+DAEMON="yes"
+DEBUG="no"
+
+if [ -f /etc/sysconfig/bitoxy ]; then
+        . /etc/sysconfig/bitoxy
+fi
+
+start() {
+	if [ -f $PIDFILE ] ; then
+		echo "Bitoxy already running."
+		echo "Delete $PIDFILE if it is not."
+		exit 1
+	fi
+	
+	echo -n "Starting Bitoxy... "
+	
+	CMD="$BITOXY --config $CONFIG --pidfile $PIDFILE"
+	
+	if [ "$DAEMON" == "yes" ] ; then
+		CMD="$CMD --daemon --logfile $LOGFILE"
+	fi
+
+	if [ "$DEBUG" == "yes" ] ; then
+		CMD="$CMD --debug"
+	fi
+	
+        $CMD
+	
+	echo "done"
+}
+
+stop() {
+	echo -n "Stopping Bitoxy... "
+
+        if [ -f $PIDFILE ] ; then
+                kill `cat $PIDFILE`
+		
+		if [ "$?" == "0" ] ; then
+			rm -f $PIDFILE
+			echo "done"
+		else
+			echo "failed"
+		fi
+        else
+                echo "not running"
+        fi
+}
+
+case $1 in
+        start)
+                start
+                ;;
+        stop)
+                stop
+                ;;
+        restart)
+                stop
+                start
+                ;;
+        *)
+                echo "Usage: $0 {start|stop|restart}"
+                ;;
+esac

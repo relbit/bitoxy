@@ -1,0 +1,10 @@
+# Configuration file for the bitoxy service.
+
+# yes or no
+#DAEMON=yes
+#DEBUG=no
+#
+#PIDFILE=/var/run/bitoxy.pid
+#LOGFILE=/var/log/bitoxy.log
+#CONFIG=/etc/bitoxy.conf
+
