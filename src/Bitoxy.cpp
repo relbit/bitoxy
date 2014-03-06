@@ -335,8 +335,8 @@ void Bitoxy::gracefullyExit(int sig)
 
 	switch(sig)
 	{
-	case SIGKILL:
-		qDebug() << "Received SIGKILL";
+	case SIGTERM:
+		qDebug() << "Received SIGTERM";
 		break;
 	case SIGINT:
 		qDebug() << "Received SIGINT";
@@ -413,7 +413,7 @@ void help()
 	out << "Usage: bitoxy [-c CONFIG] [-d] [-p PIDFILE] [-g]\n";
 	out << "\nOptions:\n";
 	out << "    -c, --config=FILE    Specify config file, defaults to /etc/bitoxy.conf\n";
-	out << "    -d                   Daemonize, by default stay on foreground\n";
+	out << "    -d, --daemon         Daemonize, by default stay on foreground\n";
 	out << "    -g, --debug          Show debug messages, only errors are printed if not enabled\n";
 	out << "    -p, --pidfile=FILE   Save PID to file\n";
 	out << "    -l, --logfile=FILE   Redirect output to file\n";
@@ -437,7 +437,7 @@ int main(int argc, char *argv[])
 	static struct option long_options[] = {
 		{"config",  required_argument, 0,      'c'},
 		{"daemon",  no_argument,       &daemon, 1 },
-		{"debug",   no_argument,       0,       1 },
+		{"debug",   no_argument,       0,      'g'},
 		{"pidfile", required_argument, 0,      'p'},
 		{"logfile", required_argument, 0,      'l'},
 		{"help",    no_argument,       0,      'h'},
